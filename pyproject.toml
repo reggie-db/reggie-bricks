@@ -15,11 +15,8 @@ dependencies = [
     # Networking
     "requests",
     "urllib3",
-
+    "databricks-zerobus @ file:///${PROJECT_ROOT}/prpr/databricks_zerobus-0.0.16-py3-none-any.whl"
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.uv.pip]
-find-links = ["./prpr/"]
