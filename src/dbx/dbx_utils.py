@@ -11,7 +11,7 @@ from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
 from pyspark.sql import SparkSession
 
-from src.common import utils
+from common import utils
 
 
 def runtime_version() -> Optional[str]:
