@@ -11,7 +11,8 @@ from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
 from pyspark.sql import SparkSession
 
-from common import utils
+from common import log_utils
+from common import console_utils
 
 
 def runtime_version() -> Optional[str]:
@@ -46,7 +47,7 @@ def config(profile: Optional[str] = None) -> Config:
                     profile_name = profile.get("name")
                     if "DEFAULT" == profile_name:
                         return profile_name
-                return utils.select_choice("Select a profile", [p["name"] for p in profiles])
+                return console_utils.select_choice("Select a profile", [p["name"] for p in profiles])
         return None
 
     def _config(profile, auth_login=True) -> Config:
@@ -66,7 +67,7 @@ def config(profile: Optional[str] = None) -> Config:
             raise e
 
     cfg = _config(profile)
-    utils.logger().info("config created - profile:%s config:%s", profile, cfg)
+    log_utils.logger().info("config created - profile:%s config:%s", profile, cfg)
     if not profile:
         _config_default = cfg
     return cfg
@@ -118,7 +119,7 @@ def _cli_run(*popenargs,
     args.extend(popenargs)
     if profile:
         args.extend(["--profile", profile])
-    utils.logger().debug("cli run - args:%s stdout:%s stderr:%s check:%s", args, stdout, stderr, check)
+    log_utils.logger().debug("cli run - args:%s stdout:%s stderr:%s check:%s", args, stdout, stderr, check)
     completed_process = subprocess.run(args, stdout=stdout, stderr=stderr, check=check)
     return json.loads(completed_process.stdout) if completed_process.stdout else None, completed_process
 
@@ -126,14 +127,14 @@ def _cli_run(*popenargs,
 @functools.lru_cache(maxsize=1)
 def _cli_version() -> Dict[str, Any]:
     version = None if runtime_version() else _cli_run("version", check=False, stderr=subprocess.DEVNULL)[0]
-    utils.logger().info(f"version:{version}")
+    log_utils.logger().info(f"version:{version}")
     return version
 
 
 @functools.lru_cache(maxsize=1)
 def _cli_auth_profiles() -> Optional[Dict[str, Any]]:
     auth_profiles = _cli_run("auth", "profiles")[0]
-    utils.logger().info(f"auth profiles:{auth_profiles}")
+    log_utils.logger().info(f"auth profiles:{auth_profiles}")
     return auth_profiles
 
 
@@ -154,4 +155,4 @@ if __name__ == "__main__":
     spark().sql("select 'hello there' as msg").show()
     w = workspace_client()
     for v in w.jobs.list(name="dbdemos_job_bike_init_dilan_patel"):
-        utils.logger().info(v)
+        log_utils.logger().info(v)
