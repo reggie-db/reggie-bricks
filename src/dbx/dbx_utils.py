@@ -110,7 +110,7 @@ def context() -> Optional[Any]:
 
 
 def _cli_run(*popenargs,
-             profile=None, stdout=subprocess.PIPE, stderr=None, check=False) -> Tuple[
+             profile=None, stdout=subprocess.PIPE, stderr=None, check=False, timeout=5) -> Tuple[
     Dict[str, Any], subprocess.CompletedProcess]:
     version = runtime_version()
     if version:
@@ -120,7 +120,7 @@ def _cli_run(*popenargs,
     if profile:
         args.extend(["--profile", profile])
     log_utils.logger().debug("cli run - args:%s stdout:%s stderr:%s check:%s", args, stdout, stderr, check)
-    completed_process = subprocess.run(args, stdout=stdout, stderr=stderr, check=check)
+    completed_process = subprocess.run(args, stdout=stdout, stderr=stderr, check=check, timeout=timeout)
     return json.loads(completed_process.stdout) if completed_process.stdout else None, completed_process
 
 
