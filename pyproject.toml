@@ -7,11 +7,6 @@ dependencies = [
     # Databricks
     "databricks-sdk",
     "databricks-connect<=17.1",
-
-    # Core computer vision + detection
-    "ultralytics==8.2.92",
-    "opencv-python==4.10.0.84",
-
     # Networking
     "requests",
     "urllib3",
