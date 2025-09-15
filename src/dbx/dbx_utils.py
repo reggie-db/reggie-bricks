@@ -127,14 +127,14 @@ def _cli_run(*popenargs,
 @functools.lru_cache(maxsize=1)
 def _cli_version() -> Dict[str, Any]:
     version = None if runtime_version() else _cli_run("version", check=False, stderr=subprocess.DEVNULL)[0]
-    log_utils.logger().info(f"version:{version}")
+    log_utils.logger().debug(f"version:{version}")
     return version
 
 
 @functools.lru_cache(maxsize=1)
 def _cli_auth_profiles() -> Optional[Dict[str, Any]]:
     auth_profiles = _cli_run("auth", "profiles")[0]
-    log_utils.logger().info(f"auth profiles:{auth_profiles}")
+    log_utils.logger().debug(f"auth profiles:{auth_profiles}")
     return auth_profiles
 
 
