@@ -12,6 +12,20 @@ def version() -> Optional[str]:
     return runtime_version or None
 
 
+def dbutils(spark: SparkSession = None):
+    if not spark:
+        spark = clients.spark()
+    dbutils = None
+    dbutils_class = _dbutils_class()
+    if dbutils_class:
+        dbutils = dbutils_class(spark)
+    if not dbutils:
+        ipython_class = _ipython_class()
+        if ipython_class:
+            dbutils = ipython_class().get_ipython().user_ns["dbutils"]
+    return dbutils
+
+
 def context(spark: SparkSession = None) -> Dict[str, Any]:
     contexts: List[Dict[str, Any]] = []
     get_context_function = _get_context_function()
@@ -56,18 +70,22 @@ def context(spark: SparkSession = None) -> Dict[str, Any]:
     return context
 
 
-def dbutils(spark: SparkSession = None):
-    if not spark:
-        spark = clients.spark()
-    dbutils = None
-    dbutils_class = _dbutils_class()
-    if dbutils_class:
-        dbutils = dbutils_class(spark)
-    if not dbutils:
-        ipython_class = _ipython_class()
-        if ipython_class:
-            dbutils = ipython_class().get_ipython().user_ns["dbutils"]
-    return dbutils
+def is_notebook(spark: SparkSession = None) -> bool:
+    ctx = context(spark)
+    return ctx.get("isInNotebook", False)
+
+
+def is_job(spark: SparkSession = None) -> bool:
+    ctx = context(spark)
+    return ctx.get("isInJob", False)
+
+
+def is_pipeline(spark: SparkSession = None) -> bool:
+    if is_job(spark):
+        return False
+    ctx = context(spark)
+    runtime_version = ctx.get("runtimeVersion", "")
+    return runtime_version and runtime_version.startswith("dlt:")
 
 
 @functools.cache

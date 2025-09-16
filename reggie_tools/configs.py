@@ -1,12 +1,14 @@
 import functools
 import json
+import os
 import subprocess
 import threading
+from builtins import ValueError, Exception, hasattr
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
+from pyspark.sql import SparkSession
 from reggie_tools import logs, inputs, clients, runtimes, catalogs
 from typing import Optional, Tuple, Dict, Any
-from pyspark.sql import SparkSession
 
 _config_default_lock = threading.Lock()
 _config_default: Optional[Config] = None
@@ -74,14 +76,33 @@ def token(config: Config = None) -> str:
             raise ValueError(f"config token not found - config:{config}")
 
 
-def config_value(spark: SparkSession = None, secrets: bool = True, widgets: bool = True, spark_config:bool = True) -> Dict[str, Any]:
-    dbutils = runtimes.dbutils() if secrets or widgets else None
+def config_value(name: str, spark: SparkSession = None, secrets: bool = True, widgets: bool = True,
+                 spark_conf: bool = True, os_environ: bool = True) -> Any:
+    if not name:
+        raise ValueError("name cannot be empty")
+
+    def _try_get(fn):
+        try:
+            return fn(name)
+        except Exception:
+            return None
+
+    dbutils = runtimes.dbutils(spark) if secrets or widgets else None
     if dbutils:
         if secrets:
-
-            return ""
+            catalog_schema = catalogs.catalog_schema(spark)
+            value = _try_get(lambda n: dbutils.secrets.get(scope=str(catalog_schema), key=n))
+            if value: return value
+        if widgets and hasattr(dbutils, "widgets"):
+            value = _try_get(dbutils.widgets.get)
+            if value: return value
+    if spark_conf:
+        value = _try_get((spark or clients.spark()).conf.get)
+        if value: return value
+    if os_environ:
+        value = os.environ.get(name)
+        if value: return value
     return None
-
 
 
 def _cli_run(*popenargs,
@@ -118,4 +139,5 @@ def _cli_auth_login(profile: str):
 
 
 if __name__ == "__main__":
+    print(config_value("PATH"))
     clients.spark().sql("select 'hello there' as msg").show()
