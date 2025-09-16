@@ -44,9 +44,7 @@ def catalog_schema(spark: SparkSession = None) -> CatalogSchema:
             if c and s:
                 catalog_schemas.add(CatalogSchema(c, s))
     if len(catalog_schemas) == 1:
-        return catalog_schemas.first()
-    elif catalog_schemas:
-        logs.logger().info(f"multiple catalog schemas: {catalog_schemas}")
+        return next(iter(catalog_schemas))
     catalog_schema_row = spark.sql("SELECT current_catalog() AS catalog, current_schema() AS schema").first()
     if catalog_schema_row.catalog and catalog_schema_row.schema:
         return CatalogSchema(catalog_schema_row.catalog, catalog_schema_row.schema)
