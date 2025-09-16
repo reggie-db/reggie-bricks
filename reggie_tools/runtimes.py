@@ -7,9 +7,9 @@ from typing import Optional, Any, Dict, List
 
 
 @functools.cache
-def version() -> Optional[Dict[str, Any]]:
+def version() -> Optional[str]:
     runtime_version = os.environ.get("DATABRICKS_RUNTIME_VERSION")
-    return json.loads(runtime_version) if runtime_version else None
+    return runtime_version or None
 
 
 def context(spark: SparkSession = None) -> Dict[str, Any]:
