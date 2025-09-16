@@ -16,7 +16,7 @@ def context(spark: SparkSession = None) -> Dict[str, Any]:
     contexts: List[Dict[str, Any]] = []
     get_context_function = _get_context_function()
     if get_context_function:
-        contexts.append(get_context_function())
+        contexts.append(get_context_function().__dict__)
     context_dbutils = dbutils(spark)
     if context_dbutils and hasattr(context_dbutils, "entry_point"):
         context_json = context_dbutils.entry_point.getDbutils().notebook().getContext().safeToJson()
