@@ -2,7 +2,7 @@ import functools
 import functools
 import re
 import uuid
-from builtins import RuntimeError, ValueError
+from builtins import RuntimeError, ValueError, hasattr
 from dataclasses import dataclass
 from pyspark.sql import SparkSession
 from pyspark.sql.connect.functions import current_catalog
@@ -56,6 +56,15 @@ def catalog_schema(spark: SparkSession = None) -> Optional[CatalogSchema]:
     catalog_schema_config = _catalog_schema_config()
     if catalog_schema_config:
         return catalog_schema_config
+    if not spark:
+        spark = clients.spark()
+    if hasattr(spark, "catalog"):
+        spark_catalog = spark.catalog
+        if spark_catalog and hasattr(spark_catalog, "currentCatalog") and hasattr(spark_catalog, "currentDatabase"):
+            current_catalog = spark_catalog.currentCatalog()
+            current_schema = spark_catalog.currentDatabase()
+            if current_catalog and current_schema:
+                return CatalogSchema(current_catalog, current_schema)
     catalog_schema_row = (spark or clients.spark()).sql(
         "SELECT current_catalog() AS catalog, current_schema() AS schema").first()
     if catalog_schema_row.catalog and catalog_schema_row.schema:
