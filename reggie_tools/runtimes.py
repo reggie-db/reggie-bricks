@@ -33,7 +33,7 @@ def context(spark: SparkSession = None) -> Optional[Any]:
             return [_convert_keys(i) for i in obj]
         else:
             return obj
-    return _convert_keys(contxt_attributes)
+    return _convert_keys(context)
 
 
 def dbutils(spark: SparkSession = None):
