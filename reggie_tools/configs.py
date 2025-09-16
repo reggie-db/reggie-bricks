@@ -97,8 +97,9 @@ def config_value(name: str, spark: SparkSession = None, config_value_sources: Li
     dbutils = runtimes.dbutils(spark) if (
             ConfigValueSource.WIDGETS in config_value_sources or ConfigValueSource.SECRETS in config_value_sources) else None
     for config_value_source in config_value_sources:
+        loader = None
         if config_value_source is ConfigValueSource.WIDGETS:
-            loader = dbutils.widgets.get if dbutils and hasattr(dbutils, "widget") else None
+            loader = dbutils.widgets.get if dbutils and hasattr(dbutils, "widgets") else None
         elif config_value_source is ConfigValueSource.SPARK_CONF:
             loader = (spark or clients.spark()).conf.get
         elif config_value_source is ConfigValueSource.OS_ENVIRON:
@@ -106,9 +107,8 @@ def config_value(name: str, spark: SparkSession = None, config_value_sources: Li
         elif config_value_source is ConfigValueSource.SECRETS:
             if dbutils and hasattr(dbutils, "secrets"):
                 catalog_schema = catalogs.catalog_schema(spark)
-                loader = lambda n: dbutils.secrets.get(scope=str(catalog_schema), key=n) if catalog_schema else None
-            else:
-                loader = None
+                if catalog_schema:
+                    loader = lambda n: dbutils.secrets.get(scope=str(catalog_schema), key=n)
         else:
             raise ValueError(f"unknown ConfigValueSource - config_value_source:{config_value_source}")
         if loader:
