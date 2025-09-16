@@ -4,8 +4,9 @@ import subprocess
 import threading
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
-from reggie_tools import logs, inputs, clients, runtimes
+from reggie_tools import logs, inputs, clients, runtimes, catalogs
 from typing import Optional, Tuple, Dict, Any
+from pyspark.sql import SparkSession
 
 _config_default_lock = threading.Lock()
 _config_default: Optional[Config] = None
@@ -71,6 +72,16 @@ def token(config: Config = None) -> str:
             return config.token
         else:
             raise ValueError(f"config token not found - config:{config}")
+
+
+def config_value(spark: SparkSession = None, secrets: bool = True, widgets: bool = True, spark_config:bool = True) -> Dict[str, Any]:
+    dbutils = runtimes.dbutils() if secrets or widgets else None
+    if dbutils:
+        if secrets:
+
+            return ""
+    return None
+
 
 
 def _cli_run(*popenargs,

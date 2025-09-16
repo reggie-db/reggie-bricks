@@ -3,7 +3,7 @@ import json
 import os
 from pyspark.sql import SparkSession
 from reggie_tools import clients
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 
 @functools.cache
@@ -12,20 +12,20 @@ def version() -> Optional[Dict[str, Any]]:
     return json.loads(runtime_version) if runtime_version else None
 
 
-def context(spark: SparkSession = None) -> Optional[Any]:
-    context: Dict[str, Any] = None
+def context(spark: SparkSession = None) -> Dict[str, Any]:
+    contexts: List[Dict[str, Any]] = []
     get_context_function = _get_context_function()
     if get_context_function:
-        context= get_context_function()
+        contexts.append(get_context_function())
     context_dbutils = dbutils(spark)
     if context_dbutils and hasattr(context_dbutils, "entry_point"):
         context_json = context_dbutils.entry_point.getDbutils().notebook().getContext().safeToJson()
-        context = json.loads(context_json).get("attributes", {})
-    if not context:
-        return None
+        contexts.append(json.loads(context_json).get("attributes", {}))
+
     def _snake_to_camel(s: str) -> str:
         parts = s.split("_")
         return parts[0] + "".join(p.title() for p in parts[1:])
+
     def _convert_keys(obj: Any) -> Any:
         if isinstance(obj, dict):
             return {_snake_to_camel(k): _convert_keys(v) for k, v in obj.items()}
@@ -33,7 +33,27 @@ def context(spark: SparkSession = None) -> Optional[Any]:
             return [_convert_keys(i) for i in obj]
         else:
             return obj
-    return _convert_keys(context)
+
+    def _deep_merge(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+        for k, v in b.items():
+            if not v:  # skip falsy
+                continue
+            if (
+                    k in a
+                    and isinstance(a[k], dict)
+                    and isinstance(v, dict)
+            ):
+                a[k] = _deep_merge(a[k], v)
+            else:
+                a[k] = v
+
+        return a
+
+    context: Dict[str, Any] = {}
+    for ctx in contexts:
+        if ctx:
+            context = _deep_merge(_convert_keys(context), ctx)
+    return context
 
 
 def dbutils(spark: SparkSession = None):
