@@ -28,7 +28,6 @@ class CatalogSchemaTable(CatalogSchema):
 def catalog_schema(spark: SparkSession = None) -> CatalogSchema:
     if not spark:
         spark = clients.spark()
-    print(spark.catalog.currentCatalog())
     catalog_name = configs.config_value("catalog_name", secrets=False)
     if catalog_name:
         schema_name = configs.config_value("schema_name", secrets=False)
