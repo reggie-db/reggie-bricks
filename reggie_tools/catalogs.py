@@ -4,7 +4,7 @@ from builtins import RuntimeError, ValueError
 from dataclasses import dataclass
 from pyspark.sql import SparkSession
 from pyspark.sql.connect.functions import current_catalog
-from reggie_tools import clients, configs
+from reggie_tools import clients, configs, logs
 from typing import Set
 
 
@@ -46,6 +46,8 @@ def catalog_schema(spark: SparkSession = None) -> CatalogSchema:
                 catalog_schemas.add(CatalogSchema(c, s))
     if len(catalog_schemas) == 1:
         return catalog_schemas.first()
+    elif catalog_schemas:
+        logs.logger().info(f"multiple catalog schemas: {catalog_schemas}")
     catalog_schema_row = spark.sql("SELECT current_catalog() AS catalog, current_schema() AS schema").first()
     if catalog_schema_row.catalog and catalog_schema_row.schema:
         return CatalogSchema(catalog_schema_row.catalog, catalog_schema_row.schema)
