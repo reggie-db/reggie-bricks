@@ -6,12 +6,24 @@ import threading
 from builtins import ValueError, Exception, hasattr
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
+from enum import Enum
 from pyspark.sql import SparkSession
 from reggie_tools import logs, inputs, clients, runtimes, catalogs
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 
 _config_default_lock = threading.Lock()
 _config_default: Optional[Config] = None
+
+
+class ConfigValueSource(Enum):
+    WIDGETS = 1
+    SPARK_CONF = 2
+    OS_ENVIRON = 3
+    SECRETS = 4
+
+    @classmethod
+    def without(cls, *excluded):
+        return [member for member in cls if member not in excluded]
 
 
 def get(profile: Optional[str] = None) -> Config:
@@ -76,32 +88,35 @@ def token(config: Config = None) -> str:
             raise ValueError(f"config token not found - config:{config}")
 
 
-def config_value(name: str, spark: SparkSession = None, secrets: bool = True, widgets: bool = True,
-                 spark_conf: bool = True, os_environ: bool = True) -> Any:
+def config_value(name: str, spark: SparkSession = None, config_value_sources: List[ConfigValueSource] = None) -> Any:
     if not name:
         raise ValueError("name cannot be empty")
+    if not config_value_sources:
+        config_value_sources = tuple(ConfigValueSource)
 
-    def _try_get(fn):
-        try:
-            return fn(name)
-        except Exception:
-            return None
-
-    dbutils = runtimes.dbutils(spark) if secrets or widgets else None
-    if dbutils:
-        if secrets:
-            catalog_schema = catalogs.catalog_schema(spark)
-            value = _try_get(lambda n: dbutils.secrets.get(scope=str(catalog_schema), key=n))
-            if value: return value
-        if widgets and hasattr(dbutils, "widgets"):
-            value = _try_get(dbutils.widgets.get)
-            if value: return value
-    if spark_conf:
-        value = _try_get((spark or clients.spark()).conf.get)
-        if value: return value
-    if os_environ:
-        value = os.environ.get(name)
-        if value: return value
+    dbutils = runtimes.dbutils(spark) if (
+            ConfigValueSource.WIDGETS in config_value_sources or ConfigValueSource.SECRETS in config_value_sources) else None
+    for config_value_source in config_value_sources:
+        if config_value_source is ConfigValueSource.WIDGETS:
+            loader = dbutils.widgets.get if dbutils and hasattr(dbutils, "widget") else None
+        elif config_value_source is ConfigValueSource.SPARK_CONF:
+            loader = (spark or clients.spark()).conf.get
+        elif config_value_source is ConfigValueSource.OS_ENVIRON:
+            loader = os.environ.get
+        elif config_value_source is ConfigValueSource.SECRETS:
+            if dbutils and hasattr(dbutils, "secrets"):
+                catalog_schema = catalogs.catalog_schema(spark)
+                loader = lambda n: dbutils.secrets.get(scope=str(catalog_schema), key=n) if catalog_schema else None
+            else:
+                loader = None
+        else:
+            raise ValueError(f"unknown ConfigValueSource - config_value_source:{config_value_source}")
+        if loader:
+            try:
+                value = loader(name)
+                if value: return value
+            except Exception:
+                pass
     return None
 
 
