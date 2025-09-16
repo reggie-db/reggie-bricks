@@ -46,13 +46,11 @@ def catalog_schema(spark: SparkSession = None) -> CatalogSchema:
                 catalog_schemas.add(CatalogSchema(c, s))
     if len(catalog_schemas) == 1:
         return catalog_schemas.first()
-    catalog_schemas.clear()
-    current_catalog = spark.catalog.currentCatalog()
-    current_schema = spark.catalog.currentDatabase()
-    if not current_catalog or not current_schema:
-        raise ValueError(
-            f"catalog/schema not found - current_catalog:{current_catalog} current_schema:{current_schema}")
-    return CatalogSchema(current_catalog, current_schema)
+    catalog_schema_row = spark.sql("SELECT current_catalog() AS catalog, current_schema() AS schema").first()
+    if catalog_schema_row.catalog and catalog_schema_row.schema:
+        return CatalogSchema(catalog_schema_row.catalog, catalog_schema_row.schema)
+    raise ValueError(
+        f"catalog/schema not found - current_catalog:{current_catalog} current_schema:{current_schema}")
 
 
 def catalog(spark: SparkSession = None):
