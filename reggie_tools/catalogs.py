@@ -74,20 +74,20 @@ def catalog_schema(spark: SparkSession = None) -> Optional[CatalogSchema]:
 
 def catalog_schema_table(table: str, spark: SparkSession = None) -> Optional[CatalogSchemaTable]:
     if table:
-        catalog_schema = catalog_schema(spark)
-        if catalog_schema:
+        cs = catalog_schema(spark)
+        if cs:
             return CatalogSchemaTable(table, catalog_schema)
     return None
 
 
 def catalog(spark: SparkSession = None) -> Optional[str]:
-    catalog_schema = catalog_schema(spark)
-    return catalog_schema.catalog if catalog_schema else None
+    cs = catalog_schema(spark)
+    return cs.catalog if catalog_schema else None
 
 
 def schema(spark: SparkSession = None) -> Optional[str]:
-    catalog_schema = catalog_schema(spark)
-    return catalog_schema.schema if catalog_schema else None
+    cs = catalog_schema(spark)
+    return cs.schema if catalog_schema else None
 
 
 if __name__ == "__main__":
