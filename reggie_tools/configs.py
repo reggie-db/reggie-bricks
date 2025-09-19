@@ -3,13 +3,15 @@ import json
 import os
 import subprocess
 import threading
-from builtins import ValueError, Exception, hasattr
+from builtins import Exception, ValueError, hasattr
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
-from enum import Enum
 from pyspark.sql import SparkSession
-from reggie_tools import logs, inputs, clients, runtimes, catalogs
-from typing import Optional, Tuple, Dict, Any, List
+
+from reggie_tools import catalogs, clients, inputs, logs, runtimes
 
 _config_default_lock = threading.Lock()
 _config_default: Optional[Config] = None
@@ -50,7 +52,9 @@ def get(profile: Optional[str] = None) -> Config:
                     profile_name = profile.get("name")
                     if "DEFAULT" == profile_name:
                         return profile_name
-                return inputs.select_choice("Select a profile", [p["name"] for p in profiles])
+                return inputs.select_choice(
+                    "Select a profile", [p["name"] for p in profiles]
+                )
         return None
 
     def _config(profile, auth_login=True) -> Config:
@@ -88,18 +92,30 @@ def token(config: Config = None) -> str:
             raise ValueError(f"config token not found - config:{config}")
 
 
-def config_value(name: str, spark: SparkSession = None, config_value_sources: List[ConfigValueSource] = None) -> Any:
+def config_value(
+    name: str,
+    spark: SparkSession = None,
+    config_value_sources: List[ConfigValueSource] = None,
+) -> Any:
     if not name:
         raise ValueError("name cannot be empty")
     if not config_value_sources:
         config_value_sources = tuple(ConfigValueSource)
 
-    dbutils = runtimes.dbutils(spark) if (
-            ConfigValueSource.WIDGETS in config_value_sources or ConfigValueSource.SECRETS in config_value_sources) else None
+    dbutils = (
+        runtimes.dbutils(spark)
+        if (
+            ConfigValueSource.WIDGETS in config_value_sources
+            or ConfigValueSource.SECRETS in config_value_sources
+        )
+        else None
+    )
     for config_value_source in config_value_sources:
         loader = None
         if config_value_source is ConfigValueSource.WIDGETS:
-            loader = dbutils.widgets.get if dbutils and hasattr(dbutils, "widgets") else None
+            loader = (
+                dbutils.widgets.get if dbutils and hasattr(dbutils, "widgets") else None
+            )
         elif config_value_source is ConfigValueSource.SPARK_CONF:
             loader = (spark or clients.spark()).conf.get
         elif config_value_source is ConfigValueSource.OS_ENVIRON:
@@ -108,21 +124,31 @@ def config_value(name: str, spark: SparkSession = None, config_value_sources: Li
             if dbutils and hasattr(dbutils, "secrets"):
                 catalog_schema = catalogs.catalog_schema(spark)
                 if catalog_schema:
-                    loader = lambda n: dbutils.secrets.get(scope=str(catalog_schema), key=n)
+                    loader = lambda n: dbutils.secrets.get(
+                        scope=str(catalog_schema), key=n
+                    )
         else:
-            raise ValueError(f"unknown ConfigValueSource - config_value_source:{config_value_source}")
+            raise ValueError(
+                f"unknown ConfigValueSource - config_value_source:{config_value_source}"
+            )
         if loader:
             try:
                 value = loader(name)
-                if value: return value
+                if value:
+                    return value
             except Exception:
                 pass
     return None
 
 
-def _cli_run(*popenargs,
-             profile=None, stdout=subprocess.PIPE, stderr=None, check=False, timeout=5) -> Tuple[
-    Dict[str, Any], subprocess.CompletedProcess]:
+def _cli_run(
+    *popenargs,
+    profile=None,
+    stdout=subprocess.PIPE,
+    stderr=None,
+    check=False,
+    timeout=5,
+) -> Tuple[Dict[str, Any], subprocess.CompletedProcess]:
     version = runtimes.version()
     if version:
         raise ValueError("cli unsupported in databricks runtime - version:{version}")
@@ -130,14 +156,24 @@ def _cli_run(*popenargs,
     args.extend(popenargs)
     if profile:
         args.extend(["--profile", profile])
-    logs.logger().debug("cli run - args:%s stdout:%s stderr:%s check:%s", args, stdout, stderr, check)
-    completed_process = subprocess.run(args, stdout=stdout, stderr=stderr, check=check, timeout=timeout)
-    return json.loads(completed_process.stdout) if completed_process.stdout else None, completed_process
+    logs.logger().debug(
+        "cli run - args:%s stdout:%s stderr:%s check:%s", args, stdout, stderr, check
+    )
+    completed_process = subprocess.run(
+        args, stdout=stdout, stderr=stderr, check=check, timeout=timeout
+    )
+    return json.loads(
+        completed_process.stdout
+    ) if completed_process.stdout else None, completed_process
 
 
 @functools.cache
 def _cli_version() -> Dict[str, Any]:
-    version = None if runtimes.version() else _cli_run("version", check=False, stderr=subprocess.DEVNULL)[0]
+    version = (
+        None
+        if runtimes.version()
+        else _cli_run("version", check=False, stderr=subprocess.DEVNULL)[0]
+    )
     logs.logger().debug(f"version:{version}")
     return version
 

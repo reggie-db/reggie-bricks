@@ -2,10 +2,14 @@ import os
 import sys
 from typing import List, Optional
 
+
 def is_interactive() -> bool:
     return sys.stdin.isatty() or "PYCHARM_HOSTED" in os.environ
 
-def select_choice(title: str, choices: List[str], skip_single_choice: bool = True) -> Optional[str]:
+
+def select_choice(
+    title: str, choices: List[str], skip_single_choice: bool = True
+) -> Optional[str]:
     """
     Display a numbered list of choices and prompt the user to select one.
 
@@ -20,7 +24,9 @@ def select_choice(title: str, choices: List[str], skip_single_choice: bool = Tru
     for idx, choice in enumerate(choices, 1):
         print(f"  {idx}. {choice}")
     while True:
-        raw = input(f"Select a number [1-{len(choices)}] (or press Enter to cancel): ").strip()
+        raw = input(
+            f"Select a number [1-{len(choices)}] (or press Enter to cancel): "
+        ).strip()
         if raw == "":
             return None
         if raw.isdigit():

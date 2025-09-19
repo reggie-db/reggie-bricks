@@ -1,6 +1,6 @@
 import json
+from dataclasses import asdict, is_dataclass
 from datetime import datetime
-from dataclasses import is_dataclass, asdict
 from typing import Any
 
 

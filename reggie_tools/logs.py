@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Optional
+
 from reggie_tools import runtimes
 
 
@@ -27,8 +28,9 @@ def logger(name: Optional[str] = None) -> logging.Logger:
             handler.setFormatter(fmt)
             handler.setLevel(level)
             if sys.stdout == stream:
-                handler.addFilter(lambda record: record.levelno < handler_levels[sys.stderr])
+                handler.addFilter(
+                    lambda record: record.levelno < handler_levels[sys.stderr]
+                )
             log.addHandler(handler)
 
     return log
-

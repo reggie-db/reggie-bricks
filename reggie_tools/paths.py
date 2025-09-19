@@ -52,7 +52,7 @@ def cache_store(name: str, loader: Callable[[Path], None]) -> Path:
                 else:
                     store_path.unlink()
             store_path.mkdir(parents=True, exist_ok=True)
-            log.info(f"cache store load - %s", summary)
+            log.info("cache store load - %s", summary)
             loader(store_path)
             done_path.write_text(summary)
             return store_path
@@ -61,5 +61,7 @@ def cache_store(name: str, loader: Callable[[Path], None]) -> Path:
 
 
 if "__main__" == __name__:
-    store_path = cache_store("test a", lambda store_path: (store_path / "test.txt").write_text("suh"))
+    store_path = cache_store(
+        "test a", lambda store_path: (store_path / "test.txt").write_text("suh")
+    )
     print(store_path)

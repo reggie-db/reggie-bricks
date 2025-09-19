@@ -1,9 +1,11 @@
 import functools
 import json
 import os
+from typing import Any, Dict, List, Optional
+
 from pyspark.sql import SparkSession
+
 from reggie_tools import clients
-from typing import Optional, Any, Dict, List
 
 
 @functools.cache
@@ -33,7 +35,12 @@ def context(spark: SparkSession = None) -> Dict[str, Any]:
         contexts.append(get_context_function().__dict__)
     context_dbutils = dbutils(spark)
     if context_dbutils and hasattr(context_dbutils, "entry_point"):
-        context_json = context_dbutils.entry_point.getDbutils().notebook().getContext().safeToJson()
+        context_json = (
+            context_dbutils.entry_point.getDbutils()
+            .notebook()
+            .getContext()
+            .safeToJson()
+        )
         contexts.append(json.loads(context_json).get("attributes", {}))
 
     def _snake_to_camel(s: str) -> str:
@@ -52,11 +59,7 @@ def context(spark: SparkSession = None) -> Dict[str, Any]:
         for k, v in b.items():
             if not v:  # skip falsy
                 continue
-            if (
-                    k in a
-                    and isinstance(a[k], dict)
-                    and isinstance(v, dict)
-            ):
+            if k in a and isinstance(a[k], dict) and isinstance(v, dict):
                 a[k] = _deep_merge(a[k], v)
             else:
                 a[k] = v
@@ -92,6 +95,7 @@ def is_pipeline(spark: SparkSession = None) -> bool:
 def _dbutils_class():
     try:
         from pyspark.dbutils import DBUtils
+
         return DBUtils
     except ImportError:
         return False
@@ -101,6 +105,7 @@ def _dbutils_class():
 def _ipython_class():
     try:
         import IPython
+
         return IPython
     except ImportError:
         pass
@@ -110,6 +115,7 @@ def _ipython_class():
 def _get_context_function():
     try:
         from dbruntime.databricks_repl_context import get_context
+
         return get_context
     except ImportError:
         pass
