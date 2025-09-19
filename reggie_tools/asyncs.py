@@ -31,6 +31,7 @@ class AsyncBroadcastSubscriberQueue(asyncio.Queue[T]):
 @dataclass
 class AsyncBroadcaster[T]:
     worker: Union[Iterable[T], AsyncIterable[T]]
+    _cancel: asyncio.Event = field(init=False, default_factory=lambda: asyncio.Event())
     _subscribers: List[AsyncBroadcastSubscriber[T]] = field(
         init=False, default_factory=lambda: []
     )
@@ -39,9 +40,18 @@ class AsyncBroadcaster[T]:
     )
 
     async def __call__(self):
-        async for msg in to_async_iterable(self.worker):
+        agen = to_async_iterable(self.worker)
+        it = agen.__aiter__()
+        while not self._cancel.is_set():
+            try:
+                msg = await it.__anext__()  # next message
+            except StopAsyncIteration:
+                break
             await self._emit(msg)
         await self._emit(None)
+
+    def cancel(self):
+        self._cancel.set()
 
     async def subscribe(
         self, subscriber: AsyncBroadcastSubscriber[T] = None

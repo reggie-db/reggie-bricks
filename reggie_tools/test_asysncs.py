@@ -67,6 +67,12 @@ async def _main():
         print(f"queue_read: {await queue.get()}")
 
     tasks.append(asyncio.create_task(queue_read()))
+
+    async def cancel():
+        await asyncio.sleep(6)
+        broadcaster.cancel()
+
+    tasks.append(asyncio.create_task(cancel()))
     tasks.append(asyncio.create_task(broadcaster()))
     await asyncio.gather(*tasks)
 
