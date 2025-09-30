@@ -11,7 +11,7 @@ from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
 from pyspark.sql import SparkSession
 
-from reggie_tools import catalogs, clients, inputs, logs, runtimes
+from reggie_tools.src.main.python.reggie_tools import clients, inputs, logs, runtimes, catalogs
 
 _config_default_lock = threading.Lock()
 _config_default: Optional[Config] = None

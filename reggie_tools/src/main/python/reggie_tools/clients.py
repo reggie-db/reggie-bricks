@@ -3,7 +3,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.config import Config
 from pyspark.sql import SparkSession
 
-from reggie_tools import configs, runtimes
+from reggie_tools.src.main.python.reggie_tools import configs, runtimes
 
 
 def workspace_client(config: Config = None) -> WorkspaceClient:

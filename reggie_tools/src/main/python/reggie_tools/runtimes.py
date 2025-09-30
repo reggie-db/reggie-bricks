@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from pyspark.sql import SparkSession
 
-from reggie_tools import clients
+from reggie_tools.src.main.python.reggie_tools import clients
 
 
 @functools.cache

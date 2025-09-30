@@ -7,7 +7,7 @@ from typing import Optional, Set
 
 from pyspark.sql import SparkSession
 
-from reggie_tools import clients, configs, runtimes
+from reggie_tools.src.main.python.reggie_tools import clients, configs, runtimes
 
 
 @dataclass(frozen=True)

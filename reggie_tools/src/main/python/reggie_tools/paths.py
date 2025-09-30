@@ -7,7 +7,7 @@ from typing import Callable
 
 from filelock import FileLock, Timeout
 
-from reggie_tools import logs
+from reggie_tools.src.main.python.reggie_tools import logs
 
 _VERSION = 1
 
