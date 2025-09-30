@@ -19,7 +19,8 @@ dependencies = [
 ]
 
 
+
 [tool.setuptools.packages.find]
 where = ["src/main/python"]
-include = ["reggie_tools*"]
+
 

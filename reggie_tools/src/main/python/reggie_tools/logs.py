@@ -2,7 +2,7 @@ import logging
 import sys
 from typing import Optional
 
-from reggie_tools.src.main.python.reggie_tools import runtimes
+from reggie_tools import runtimes
 
 
 def logger(name: Optional[str] = None) -> logging.Logger:
