@@ -10,18 +10,18 @@ dependencies {
 
     implementation("com.vaadin:vaadin-spring-boot-starter:${libs.versions.vaadin.get()}")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+//    implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation(libs.databricks)
-    implementation("com.openai:openai-java:3.0.3")
+//    implementation("com.openai:openai-java:3.0.3")
+//
+//    implementation("com.databricks:databricks-connect:16.4.6")
+//
+//    implementation("org.scala-lang:scala-library:2.12.18")
+//    implementation("org.scala-lang:scala-reflect:2.12.18")
+//    runtimeOnly("com.databricks:databricks-jdbc:2.7.3")
+//    runtimeOnly("org.postgresql:postgresql")
 
-    implementation("com.databricks:databricks-connect:16.4.6")
-
-    implementation("org.scala-lang:scala-library:2.12.18")
-    implementation("org.scala-lang:scala-reflect:2.12.18")
-    runtimeOnly("com.databricks:databricks-jdbc:2.7.3")
-    runtimeOnly("org.postgresql:postgresql")
-
-    implementation("org.dflib:dflib-jdbc:1.3.0")
+//    implementation("org.dflib:dflib-jdbc:1.3.0")
 
     //    testImplementation("org.apache.spark:spark-sql_2.13:3.5.2"){
     //        exclude(group = "org.apache.logging.log4j")
