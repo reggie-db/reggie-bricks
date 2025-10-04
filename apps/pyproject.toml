@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 name = "reggie-apps"
 version = "0.1.0"
 description = "Application layer packages for Reggie bricks"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 # Do NOT pin the URL here. Reference the name only.
 dependencies = [
     "reggie-tools",
