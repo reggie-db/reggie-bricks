@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reggie-bricks"
+version = "0.0.0"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = ["apps", "tools"]
+
+# Source `reggie-tools` from the workspace member
+[tool.uv.sources]
+reggie-tools = { workspace = true }
