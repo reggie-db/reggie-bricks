@@ -1,6 +1,6 @@
 [project]
 name = "reggie-apps"
-version="0.0.1"
+version = "0.0.1"
 dependencies = [
     "reggie-tools",
 ]
