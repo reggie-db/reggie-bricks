@@ -1,19 +1,9 @@
-# pyproject.toml
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "reggie-apps"
-version = "0.1.0"
-description = "Application layer packages for Reggie bricks"
-requires-python = ">=3.11"
-# Do NOT pin the URL here. Reference the name only.
+version="0.0.1"
 dependencies = [
     "reggie-tools",
 ]
-
-
 
 [tool.setuptools.packages.find]
 where = ["src/main/python"]
