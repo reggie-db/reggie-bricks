@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reggie-apps"
+version = "0.1.0"
+description = "Application layer packages for Reggie bricks"
+requires-python = ">=3.12"
+dependencies = [
+    "reggie_tools @ git+https://github.com/reggie-db/reggie-bricks.git@main#subdirectory=tools",
+]
+
+[project.optional-dependencies]
+dev = [
+    "reggie_tools @  file://${PROJECT_ROOT}/tools",
+]
+
+[tool.setuptools.packages.find]
+where = ["src/main/python"]
+
