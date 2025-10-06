@@ -1,0 +1,32 @@
+[build-system]
+requires = [
+  "hatchling>=1.25",
+  "hatch-vcs>=0.4",
+]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "reggie-apps"
+dynamic = ["version"]
+requires-python = ">=3.9"
+dependencies = [
+  # Internal tools
+  "reggie-tools @ {root:parent:uri}/reggie-tools",
+]
+
+
+[tool.hatch.version]
+source = "vcs"
+
+
+[tool.hatch.version.raw-options]
+search_parent_directories = true
+
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reggie_apps"]
