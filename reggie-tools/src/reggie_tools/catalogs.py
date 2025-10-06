@@ -107,4 +107,5 @@ def schema(spark: SparkSession = None) -> Optional[str]:
 
 
 if __name__ == "__main__":
+    print(catalog_schema_table("reggie_tools.test"))
     print(catalog_schema())
