@@ -118,11 +118,11 @@ def _dbutils_class():
 
 
 @functools.cache
-def _ipython_class():
+def _get_ipython_function():
     try:
-        import IPython
+        from IPython import get_ipython  # pyright: ignore[reportMissingImports]
 
-        return IPython
+        return get_ipython
     except ImportError:
         pass
 
@@ -130,7 +130,9 @@ def _ipython_class():
 @functools.cache
 def _get_context_function():
     try:
-        from dbruntime.databricks_repl_context import get_context
+        from dbruntime.databricks_repl_context import (  # pyright: ignore[reportMissingImports]
+            get_context,
+        )
 
         return get_context
     except ImportError:
