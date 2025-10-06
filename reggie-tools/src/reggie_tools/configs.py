@@ -124,7 +124,7 @@ def config_value(
             if dbutils and hasattr(dbutils, "secrets"):
                 catalog_schema = catalogs.catalog_schema(spark)
                 if catalog_schema:
-                    loader = lambda n: dbutils.secrets.get(  # noqa: E731
+                    loader = lambda n: dbutils.secrets.get(
                         scope=str(catalog_schema), key=n
                     )
         else:
