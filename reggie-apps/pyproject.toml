@@ -1,34 +1,11 @@
 [build-system]
-requires = [
-  "hatchling>=1.27.0",
-  "hatch-vcs>=0.5.0",
-]
-build-backend = "hatchling.build"
-
-[tool.hatch.version]
-source = "vcs"
-
-
-[tool.hatch.version.raw-options]
-search_parent_directories = true
-
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.build.targets.wheel.hooks.custom]
-path = "../build-scripts/requirements_local_hook.py"
-
+requires = ["uv_build>=0.8.23,<0.9.0"]
+build-backend = "uv_build"
 
 [project]
 name = "reggie-apps"
-dynamic = ["version"]
-requires-python = ">=3.9"
+version = "0.1.0"
+requires-python = ">=3.12"
 dependencies = [
-  # Internal tools
-  "reggie-tools @ {root:parent:uri}/reggie-tools",
+  "reggie-tools",
 ]
-
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/reggie_apps"]

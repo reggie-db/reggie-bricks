@@ -111,6 +111,7 @@ def _ipython_class():
         pass
 
 
+
 @functools.cache
 def _get_context_function():
     try:

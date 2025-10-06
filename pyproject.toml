@@ -1,0 +1,6 @@
+[tool.uv.workspace]
+members = ["reggie-tools", "reggie-apps"]
+
+[tool.uv.sources]
+reggie-tools = { workspace = true }
+reggie-apps = { workspace = true }
