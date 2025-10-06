@@ -1,28 +1,9 @@
 [build-system]
 requires = [
-  "hatchling>=1.25",
-  "hatch-vcs>=0.4",
+  "hatchling>=1.27.0",
+  "hatch-vcs>=0.5.0",
 ]
 build-backend = "hatchling.build"
-
-
-[project]
-name = "reggie-tools"
-dynamic = ["version"]
-requires-python = ">=3.9"
-dependencies = [
-  # Databricks
-  "databricks-sdk",
-  "databricks-connect<=17.1",
-
-  # Networking
-  "requests",
-  "urllib3",
-
-  # Utilities
-  "filelock",
-]
-
 
 [tool.hatch.version]
 source = "vcs"
@@ -34,6 +15,26 @@ search_parent_directories = true
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "../build-scripts/requirements_local_hook.py"
+
+
+[project]
+name = "reggie-tools"
+dynamic = ["version"]
+requires-python = ">=3.9"
+dependencies = [
+  # Databricks
+  "databricks-sdk",
+
+  # Networking
+  "requests",
+  "urllib3",
+
+  # Utilities
+  "filelock",
+]
 
 
 [tool.hatch.build.targets.wheel]

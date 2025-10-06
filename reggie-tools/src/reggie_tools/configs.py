@@ -10,8 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
 from pyspark.sql import SparkSession
-
-from reggie_tools import clients, inputs, logs, runtimes, catalogs
+from reggie_tools import catalogs, clients, inputs, logs, runtimes
 
 _config_default_lock = threading.Lock()
 _config_default: Optional[Config] = None
@@ -147,7 +146,7 @@ def _cli_run(
     stdout=subprocess.PIPE,
     stderr=None,
     check=False,
-    timeout=5,
+    timeout=None,
 ) -> Tuple[Dict[str, Any], subprocess.CompletedProcess]:
     version = runtimes.version()
     if version:
