@@ -14,6 +14,10 @@ def workspace_client(config: Config = None) -> WorkspaceClient:
 
 def spark(config: Config = None) -> SparkSession:
     if not config:
+        spark = runtimes.ipython_user_ns("spark")
+        print("ipython spark", spark)
+        if spark:
+            return spark
         config = configs.get()
     if runtimes.version():
         return SparkSession.builder.getOrCreate()
