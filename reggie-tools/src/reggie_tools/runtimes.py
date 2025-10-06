@@ -15,9 +15,9 @@ def version() -> Optional[str]:
 
 
 def ipython() -> Optional[Any]:
-    ipython_class = _ipython_class()
-    if ipython_class:
-        ip = ipython_class().get_ipython()
+    get_ipython_function = _get_ipython_function()
+    if get_ipython_function:
+        ip = get_ipython_function()
         if ip:
             return ip
     return None
