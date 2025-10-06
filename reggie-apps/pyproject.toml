@@ -7,8 +7,10 @@ name = "reggie-apps"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-  "reggie-tools",
+  # Pip path for plain pip installs (same repo, pinned to a commit)
+  "reggie-tools @ file://${PROJECT_ROOT}/../reggie-tools",
 ]
+
 
 [tool.uv.sources]
 reggie-tools = { workspace = true }
