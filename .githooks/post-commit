@@ -1,0 +1,3 @@
+#!/bin/sh
+# Sync versions on each commit
+uv run --script build-scripts/sync_versions.py
