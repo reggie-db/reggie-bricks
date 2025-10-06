@@ -4,11 +4,11 @@ build-backend = "uv_build"
 
 [project]
 name = "reggie-tools"
-version = "0.0.1+gfb24f92"
+version = "0.0.1+g647511c"
 requires-python = ">=3.12"
 dependencies = [
   "databricks-sdk",
-  "databricks-connect",
+  "databricks-connect<=17.1",
   "requests",
   "urllib3",
   "filelock",

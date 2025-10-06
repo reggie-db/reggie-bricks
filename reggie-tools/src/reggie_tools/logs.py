@@ -1,18 +1,21 @@
 import logging
+import os
 import sys
 from typing import Optional
 
 from reggie_tools import runtimes
 
 
-def logger(name: Optional[str] = None) -> logging.Logger:
+def logger(
+    name: Optional[str] = None,
+    file: Optional[str] = None,
+) -> logging.Logger:
     """
     Get a configured logger that routes < WARNING to stdout and >= WARNING to stderr.
 
     The logger is initialized once per name and cached on the logging module.
     """
-    if not name:
-        name = __name__
+    name = _logger_name(name, file)
     log = logging.getLogger(name)
     if not log.handlers:
         log.propagate = False
@@ -34,3 +37,12 @@ def logger(name: Optional[str] = None) -> logging.Logger:
             log.addHandler(handler)
 
     return log
+
+
+def _logger_name(name: Optional[str], file: Optional[str]) -> Optional[str]:
+    if name and name != "__main__":
+        return name
+    if file:
+        file_name = os.path.splitext(os.path.basename(file))[0]
+        return _logger_name(file_name, None)
+    return __name__
