@@ -14,18 +14,34 @@ def version() -> Optional[str]:
     return runtime_version or None
 
 
+def ipython() -> Optional[Any]:
+    ipython_class = _ipython_class()
+    if ipython_class:
+        ip = ipython_class().get_ipython()
+        if ip:
+            return ip
+    return None
+
+
+def ipython_user_ns(name: str) -> Optional[Any]:
+    ip = ipython()
+    if ip:
+        return ip.user_ns.get(name)
+    return None
+
+
 def dbutils(spark: SparkSession = None):
     if not spark:
+        dbutils = ipython_user_ns("dbutils")
+        if dbutils:
+            return dbutils
         spark = clients.spark()
-    dbutils = None
     dbutils_class = _dbutils_class()
     if dbutils_class:
         dbutils = dbutils_class(spark)
-    if not dbutils:
-        ipython_class = _ipython_class()
-        if ipython_class:
-            dbutils = ipython_class().get_ipython().user_ns["dbutils"]
-    return dbutils
+        if dbutils:
+            return dbutils
+    return None
 
 
 def context(spark: SparkSession = None) -> Dict[str, Any]:
@@ -111,7 +127,6 @@ def _ipython_class():
         pass
 
 
-
 @functools.cache
 def _get_context_function():
     try:
@@ -123,4 +138,4 @@ def _get_context_function():
 
 
 if __name__ == "__main__":
-    print(context())
+    print(ipython())

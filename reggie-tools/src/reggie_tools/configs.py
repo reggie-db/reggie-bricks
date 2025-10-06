@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
 from pyspark.sql import SparkSession
+
 from reggie_tools import catalogs, clients, inputs, logs, runtimes
 
 _config_default_lock = threading.Lock()
@@ -123,7 +124,7 @@ def config_value(
             if dbutils and hasattr(dbutils, "secrets"):
                 catalog_schema = catalogs.catalog_schema(spark)
                 if catalog_schema:
-                    loader = lambda n: dbutils.secrets.get(
+                    loader = lambda n: dbutils.secrets.get(  # noqa: E731
                         scope=str(catalog_schema), key=n
                     )
         else:
