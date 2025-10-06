@@ -1,3 +1,13 @@
 #!/bin/sh
-# Sync versions on each commit
+set -e
+
+# Run your sync (updates pyproject files)
 uv run --script build-scripts/sync_versions.py
+
+# Stage any changes made by the sync so they land in THIS commit
+git add -A
+
+# Optional: tell the user what was staged
+if ! git diff --quiet --cached; then
+  echo "pre-commit: staged version updates."
+fi
