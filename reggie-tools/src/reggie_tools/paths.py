@@ -1,3 +1,5 @@
+"""File-system helpers for caching artifacts across Databricks app runs."""
+
 import hashlib
 import re
 import shutil
@@ -13,6 +15,12 @@ _VERSION = 1
 
 
 def cache_store(name: str, loader: Callable[[Path], None]) -> Path:
+    """Populate and return a cache directory determined by ``name``.
+
+    The provided ``loader`` is executed while holding an exclusive lock so that
+    concurrent processes do not race when populating the cache. Subsequent
+    calls reuse the materialized directory if a ".done" sentinel is present.
+    """
     if name and re.search(r"[^A-Za-z0-9_]", name):
         name_parts = re.split(r"[^a-zA-Z0-9]", name)
         name_parts.append(hashlib.md5(name.encode("utf-8")).hexdigest())

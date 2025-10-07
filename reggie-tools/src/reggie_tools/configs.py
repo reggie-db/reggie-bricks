@@ -1,3 +1,5 @@
+"""Helpers for constructing and caching Databricks SDK configuration objects."""
+
 import functools
 import json
 import os
@@ -18,6 +20,8 @@ _config_default: Optional[Config] = None
 
 
 class ConfigValueSource(Enum):
+    """Enumerates supported config sources in order of discovery precedence."""
+
     WIDGETS = 1
     SPARK_CONF = 2
     OS_ENVIRON = 3
@@ -25,10 +29,12 @@ class ConfigValueSource(Enum):
 
     @classmethod
     def without(cls, *excluded):
+        """Return members excluding any provided in ``excluded`` while preserving order."""
         return [member for member in cls if member not in excluded]
 
 
 def get(profile: Optional[str] = None) -> Config:
+    """Return a cached or freshly created Databricks ``Config`` for the given profile."""
     global _config_default
     if not profile:
         profile = None
@@ -81,6 +87,7 @@ def get(profile: Optional[str] = None) -> Config:
 
 
 def token(config: Config = None) -> str:
+    """Extract an API token from the provided or default configuration."""
     if not config:
         config = globals().get("config")()
     if isinstance(config._header_factory, OAuthCredentialsProvider):
@@ -97,6 +104,7 @@ def config_value(
     spark: SparkSession = None,
     config_value_sources: List[ConfigValueSource] = None,
 ) -> Any:
+    """Fetch a configuration value by checking the configured sources in order."""
     if not name:
         raise ValueError("name cannot be empty")
     if not config_value_sources:
@@ -149,6 +157,7 @@ def _cli_run(
     check=False,
     timeout=None,
 ) -> Tuple[Dict[str, Any], subprocess.CompletedProcess]:
+    """Execute the Databricks CLI and return the parsed JSON payload and process."""
     version = runtimes.version()
     if version:
         raise ValueError("cli unsupported in databricks runtime - version:{version}")
@@ -169,6 +178,7 @@ def _cli_run(
 
 @functools.cache
 def _cli_version() -> Dict[str, Any]:
+    """Return cached CLI version metadata, if available outside a runtime cluster."""
     version = (
         None
         if runtimes.version()
@@ -180,12 +190,14 @@ def _cli_version() -> Dict[str, Any]:
 
 @functools.cache
 def _cli_auth_profiles() -> Optional[Dict[str, Any]]:
+    """Return cached authentication profiles discovered via the Databricks CLI."""
     auth_profiles = _cli_run("auth", "profiles")[0]
     logs.logger().debug(f"auth profiles:{auth_profiles}")
     return auth_profiles
 
 
 def _cli_auth_login(profile: str):
+    """Execute ``databricks auth login`` for the provided CLI profile."""
     _cli_run("auth", "login", profile=profile)
 
 

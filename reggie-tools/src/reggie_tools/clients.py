@@ -1,3 +1,5 @@
+"""Client factory helpers shared across Databricks command-line tools."""
+
 import functools
 from datetime import datetime
 from typing import Optional
@@ -11,12 +13,14 @@ from reggie_tools import configs, logs, runtimes
 
 
 def workspace_client(config: Config = None) -> WorkspaceClient:
+    """Create a Databricks ``WorkspaceClient`` using the provided or cached config."""
     if not config:
         config = configs.get()
     return WorkspaceClient(config=config)
 
 
 def spark(config: Optional[Config] = None) -> SparkSession:
+    """Return a Spark session sourced from the runtime or Databricks Connect."""
     # Fast paths when no explicit config is provided
     if config is None:
         # Existing session injected in IPython user namespace
@@ -42,6 +46,7 @@ def spark(config: Optional[Config] = None) -> SparkSession:
 
 @functools.cache
 def _databricks_session_default() -> SparkSession:
+    """Initialize and memoize the default Databricks Connect Spark session."""
     config = configs.get()
     log = logs.logger(__name__, __file__)
     log.info("databricks connect session initializing")

@@ -1,3 +1,5 @@
+"""Catalog and schema discovery utilities for Databricks workspaces."""
+
 import functools
 import re
 import uuid
@@ -12,6 +14,8 @@ from reggie_tools import clients, configs, runtimes
 
 @dataclass(frozen=True)
 class CatalogSchema:
+    """Fully qualified catalog/schema pair extracted from Spark metadata."""
+
     catalog: str
     schema: str
 
@@ -21,6 +25,8 @@ class CatalogSchema:
 
 @dataclass(frozen=True)
 class CatalogSchemaTable(CatalogSchema):
+    """Catalog/schema/table triple used for formatting fully qualified names."""
+
     table: str
 
     def __str__(self) -> str:
@@ -29,6 +35,7 @@ class CatalogSchemaTable(CatalogSchema):
 
 @functools.cache
 def _catalog_schema_config() -> Optional[CatalogSchema]:
+    """Attempt to resolve catalog and schema using configuration sources."""
     config_value_sources = configs.ConfigValueSource.without(
         configs.ConfigValueSource.SECRETS
     )
@@ -60,6 +67,7 @@ def _catalog_schema_config() -> Optional[CatalogSchema]:
 
 
 def catalog_schema(spark: SparkSession = None) -> Optional[CatalogSchema]:
+    """Derive the active catalog/schema, preferring configuration hints first."""
     catalog_schema_config = _catalog_schema_config()
     if catalog_schema_config:
         return catalog_schema_config
@@ -89,6 +97,7 @@ def catalog_schema(spark: SparkSession = None) -> Optional[CatalogSchema]:
 def catalog_schema_table(
     table: str, spark: SparkSession = None
 ) -> Optional[CatalogSchemaTable]:
+    """Return a fully qualified table reference for the provided ``table`` name."""
     if table:
         cs = catalog_schema(spark)
         if cs:
@@ -97,11 +106,13 @@ def catalog_schema_table(
 
 
 def catalog(spark: SparkSession = None) -> Optional[str]:
+    """Return only the catalog component from :func:`catalog_schema`."""
     cs = catalog_schema(spark)
     return cs.catalog if catalog_schema else None
 
 
 def schema(spark: SparkSession = None) -> Optional[str]:
+    """Return only the schema component from :func:`catalog_schema`."""
     cs = catalog_schema(spark)
     return cs.schema if catalog_schema else None
 

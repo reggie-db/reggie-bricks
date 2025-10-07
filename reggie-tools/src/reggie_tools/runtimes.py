@@ -1,3 +1,5 @@
+"""Runtime helpers for working within Databricks notebooks and jobs."""
+
 import functools
 import json
 import os
@@ -10,11 +12,13 @@ from reggie_tools import clients
 
 @functools.cache
 def version() -> Optional[str]:
+    """Return the Databricks runtime version if running on a cluster."""
     runtime_version = os.environ.get("DATABRICKS_RUNTIME_VERSION")
     return runtime_version or None
 
 
 def ipython() -> Optional[Any]:
+    """Return the active IPython instance when executing inside a notebook."""
     get_ipython_function = _get_ipython_function()
     if get_ipython_function:
         ip = get_ipython_function()
@@ -24,6 +28,7 @@ def ipython() -> Optional[Any]:
 
 
 def ipython_user_ns(name: str) -> Optional[Any]:
+    """Look up ``name`` within the IPython user namespace, if available."""
     ip = ipython()
     if ip:
         return ip.user_ns.get(name)
@@ -31,6 +36,7 @@ def ipython_user_ns(name: str) -> Optional[Any]:
 
 
 def dbutils(spark: SparkSession = None):
+    """Return the ``DBUtils`` handle associated with the current Spark session."""
     if not spark:
         dbutils = ipython_user_ns("dbutils")
         if dbutils:
@@ -45,6 +51,7 @@ def dbutils(spark: SparkSession = None):
 
 
 def context(spark: SparkSession = None) -> Dict[str, Any]:
+    """Assemble runtime context information from notebook and Spark sources."""
     contexts: List[Dict[str, Any]] = []
     get_context_function = _get_context_function()
     if get_context_function:
@@ -90,16 +97,19 @@ def context(spark: SparkSession = None) -> Dict[str, Any]:
 
 
 def is_notebook(spark: SparkSession = None) -> bool:
+    """Return ``True`` when the current context indicates notebook execution."""
     ctx = context(spark)
     return ctx.get("isInNotebook", False)
 
 
 def is_job(spark: SparkSession = None) -> bool:
+    """Return ``True`` when the runtime context corresponds to a job run."""
     ctx = context(spark)
     return ctx.get("isInJob", False)
 
 
 def is_pipeline(spark: SparkSession = None) -> bool:
+    """Return ``True`` when executing inside a Databricks pipeline rather than a job."""
     if is_job(spark):
         return False
     ctx = context(spark)
@@ -109,6 +119,7 @@ def is_pipeline(spark: SparkSession = None) -> bool:
 
 @functools.cache
 def _dbutils_class():
+    """Import and cache the DBUtils entry point when available."""
     try:
         from pyspark.dbutils import DBUtils
 
@@ -119,6 +130,7 @@ def _dbutils_class():
 
 @functools.cache
 def _get_ipython_function():
+    """Return the ``get_ipython`` callable when IPython is importable."""
     try:
         from IPython import get_ipython  # pyright: ignore[reportMissingImports]
 
@@ -129,6 +141,7 @@ def _get_ipython_function():
 
 @functools.cache
 def _get_context_function():
+    """Return the Databricks notebook context accessor when available."""
     try:
         from dbruntime.databricks_repl_context import (  # pyright: ignore[reportMissingImports]
             get_context,

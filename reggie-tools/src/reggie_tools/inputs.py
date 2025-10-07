@@ -1,9 +1,12 @@
+"""Utilities for interactive user input when running Databricks tools locally."""
+
 import os
 import sys
 from typing import List, Optional
 
 
 def is_interactive() -> bool:
+    """Return ``True`` when the current process can safely prompt the user."""
     return sys.stdin.isatty() or "PYCHARM_HOSTED" in os.environ
 
 
