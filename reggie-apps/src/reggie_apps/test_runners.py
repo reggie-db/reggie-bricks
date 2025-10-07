@@ -1,6 +1,6 @@
 import os
 
-from reggie_app_runner import runs
+from reggie_apps import runners
 
 if __name__ == "__main__":
     os.environ["DATABRICKS_APP_CONFIG_0_SOURCE"] = (
@@ -15,4 +15,4 @@ if __name__ == "__main__":
     )
     os.environ["DATABRICKS_APP_CONFIG_1_COMMAND"] = "uv run --script app.py"
     os.environ["DATABRICKS_APP_CONFIG_1_POLL_INTERVAL"] = "15s"
-    runs.run()
+    runners.run()

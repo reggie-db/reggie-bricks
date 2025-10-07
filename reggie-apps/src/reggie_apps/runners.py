@@ -1,5 +1,4 @@
 import hashlib
-import logging
 import os
 import re
 import shlex
@@ -12,11 +11,12 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from caddy import CaddyWorker
 from pytimeparse.timeparse import timeparse
-from reactivex import Observer
 from reggie_core import logs
+from reggie_core.procs import Worker, WorkerOutputConsumer
 from reggie_rx.procs import RxProcess
 
 LOG = logs.logger(__name__)
@@ -31,6 +31,7 @@ CADDY_DIR = WORK_ROOT / "caddy"
 CADDYFILE_PATH = CADDY_DIR / "Caddyfile"
 CADDY_RUN_SH = CADDY_DIR / "run_caddy.sh"
 CADDY_PORT = int(os.getenv("DATABRICKS_APP_CADDY_PORT", "8000"))
+CADDY_LOG_LEVEL_PATTERN = re.compile(r'"level"\s*:\s*"(\S+?)"', re.IGNORECASE)
 
 
 def parse_duration(s: Optional[str]) -> int:
@@ -127,22 +128,12 @@ def run_cmd(cmd_idx: int, cmd: str, cwd: Path, env: Dict[str, str]) -> RxProcess
     LOG.info(
         f"starting process {cmd_idx}: {args} in {cwd} port: {env.get('DATABRICKS_APP_PORT')}"
     )
-
-    def _subscriber(err: bool):
-        level = logging.ERROR if err else logging.INFO
-        return Observer(
-            on_next=lambda v: LOG.log(level, v),
-            on_error=lambda v: LOG.error(v),
-            on_completed=lambda: LOG.log(level, "completed") if not err else None,
-        )
-
-    proc = RxProcess(
+    log_consumer = WorkerOutputConsumer.log(prefix=f"app-{cmd_idx}")
+    proc = Worker(
         args,
         cwd=str(cwd),
         env=env,
-        stdout_subscribers=[_subscriber(False)],
-        stderr_subscribers=[_subscriber(True)],
-        text=True,
+        output_consumers=log_consumer,
         bufsize=1,
     )
     return proc
@@ -407,56 +398,39 @@ class AppWorker(threading.Thread):
         self.stop_evt.set()
 
 
-def build_caddyfile(apps: List[AppConfig]) -> str:
-    lines: List[str] = []
-    lines.append("{")
-    lines.append("    admin off")
-    lines.append("}")
-    lines.append("")
-    lines.append(f":{CADDY_PORT} " + "{")
-    # lines.append("    log")
+def build_caddy_file_content(apps: List[AppConfig]) -> Dict[str, Any]:
+    routes = []
     for app in apps:
-        matcher = f"@app{app.index}"
-        path_glob = app.path + "*"
-        lines.append(f"    {matcher} path {path_glob}")
-        lines.append(f"    reverse_proxy {matcher} localhost:{app.port}")
-        lines.append("")
-    lines.append("}")
-    return "\n".join(lines)
+        route = {
+            "match": [{"path": [f"{app.path}*"]}],
+            "handle": [
+                {
+                    "handler": "reverse_proxy",
+                    "upstreams": [{"dial": f"localhost:{app.port}"}],
+                }
+            ],
+        }
+        routes.append(route)
+
+    config = {
+        "admin": {"disabled": True, "config": {"persist": False}},
+        "apps": {
+            "http": {
+                "servers": {
+                    "srv0": {
+                        "listen": [f":{CADDY_PORT}"],
+                        "routes": routes,
+                    }
+                }
+            }
+        },
+    }
+    return config
 
 
-def write_caddy_run_files(caddyfile_text: str):
-    CADDY_DIR.mkdir(parents=True, exist_ok=True)
-    CADDYFILE_PATH.write_text(caddyfile_text)
-    CADDY_RUN_SH.write_text(
-        f"#!/usr/bin/env bash\nset -euo pipefail\nexec caddy run --config '{CADDYFILE_PATH}' --adapter caddyfile\n"
-    )
-    try:
-        CADDY_RUN_SH.chmod(0o755)
-    except Exception:
-        pass
-    LOG.info(f"wrote Caddyfile at {CADDYFILE_PATH}")
-    LOG.info(f"wrote run script at {CADDY_RUN_SH}")
-
-
-def start_caddy() -> subprocess.Popen:
+def start_caddy(caddy_config) -> subprocess.Popen:
     LOG.info(f"starting caddy on port {CADDY_PORT}")
-    proc = subprocess.Popen(
-        [str(CADDY_RUN_SH)],
-        cwd=str(CADDY_DIR),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-
-    def pipe_logs():
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            LOG.info(f"caddy | {line.rstrip()}")
-
-    t = threading.Thread(target=pipe_logs, name="caddy-logs", daemon=True)
-    t.start()
+    proc = CaddyWorker(caddy_config, cwd=str(CADDY_DIR))
     return proc
 
 
@@ -541,9 +515,8 @@ def run():
         seen_paths.add(cfg.path)
         LOG.info(f"app {cfg.index} path {cfg.path} port {cfg.port}")
 
-    caddyfile = build_caddyfile(app_configs)
-    write_caddy_run_files(caddyfile)
-    caddy_proc = start_caddy()
+    caddyfile = build_caddy_file_content(app_configs)
+    caddy_proc = start_caddy(caddyfile)
 
     workers: Dict[int, AppWorker] = {}
     for cfg in app_configs:

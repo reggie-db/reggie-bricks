@@ -5,17 +5,14 @@ requires = [
 build-backend = "uv_build"
 
 [project]
-name = "reggie-app-runner"
-version = "0.0.1+g5eece13"
+name = "reggie-apps"
+version = "0.0.1+gd3f9cbf"
 requires-python = ">=3.12"
 dependencies = [
     "reggie-core @ file://${PROJECT_ROOT}/../reggie-core",
-    "reggie-rx @ file://${PROJECT_ROOT}/../reggie-rx",
+    "miniconda",
     "pytimeparse",
 ]
 
 [tool.uv.sources.reggie-core]
-workspace = true
-
-[tool.uv.sources.reggie-rx]
 workspace = true

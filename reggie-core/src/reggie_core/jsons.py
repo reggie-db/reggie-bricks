@@ -6,9 +6,10 @@ from datetime import datetime
 from typing import Any
 
 
-def dumps(obj: Any) -> Any:
+def dumps(obj: Any, **kwargs) -> Any:
     """Serialize ``obj`` while automatically handling dataclasses and ISO dates."""
-    return json.dumps(obj, cls=DataclassJSONEncoder)
+    kwargs.setdefault("cls", DataclassJSONEncoder)
+    return json.dumps(obj, **kwargs)
 
 
 class DataclassJSONEncoder(json.JSONEncoder):
