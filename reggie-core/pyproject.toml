@@ -6,8 +6,10 @@ build-backend = "uv_build"
 
 [project]
 name = "reggie-core"
-version = "0.0.1+g3076507"
+version = "0.0.1+g21ffc98"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "filelock",
+]
 
 [tool.uv.sources]

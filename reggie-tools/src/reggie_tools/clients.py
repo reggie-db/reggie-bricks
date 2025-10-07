@@ -8,8 +8,9 @@ from databricks.connect import DatabricksSession
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.config import Config
 from pyspark.sql import SparkSession
+from reggie_core import logs
 
-from reggie_tools import configs, logs, runtimes
+from reggie_tools import configs, runtimes
 
 
 def workspace_client(config: Config = None) -> WorkspaceClient:
