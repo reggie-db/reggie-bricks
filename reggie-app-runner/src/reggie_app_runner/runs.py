@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from pytimeparse.timeparse import timeparse
 from reactivex import Observer
 from reggie_core import logs
 from reggie_rx.procs import RxProcess
@@ -33,24 +34,19 @@ CADDY_PORT = int(os.getenv("DATABRICKS_APP_CADDY_PORT", "8000"))
 
 
 def parse_duration(s: Optional[str]) -> int:
+    """
+    Parse a human-friendly duration string (e.g. "10s", "5m", "2h", "1h30m")
+    into seconds using pytimeparse. Falls back to DEFAULT_POLL_SECONDS if
+    input is None or unparsable.
+    """
+    s = s.strip().lower() if s else None
     if not s:
         return DEFAULT_POLL_SECONDS
-    s = s.strip().lower()
-    try:
-        return int(s)
-    except ValueError:
-        pass
-    m = re.fullmatch(r"(\d+)\s*([smh])", s)
-    if not m:
+
+    result = timeparse(s)
+    if result is None:
         raise ValueError(f"Invalid duration: {s}")
-    n, unit = int(m.group(1)), m.group(2)
-    if unit == "s":
-        return n
-    if unit == "m":
-        return n * 60
-    if unit == "h":
-        return n * 3600
-    return DEFAULT_POLL_SECONDS
+    return int(result)
 
 
 def load_kv_file(path: Path) -> Dict[str, str]:
