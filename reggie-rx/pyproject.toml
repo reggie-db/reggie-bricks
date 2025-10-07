@@ -6,7 +6,7 @@ build-backend = "uv_build"
 
 [project]
 name = "reggie-rx"
-version = "0.0.1+g286935b"
+version = "0.0.1+ga44c934"
 requires-python = ">=3.12"
 dependencies = [
     "reactivex",

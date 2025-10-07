@@ -28,7 +28,7 @@ CONFIG_FILE_PATTERN = re.compile(r"^DATABRICKS_APP_CONFIG(?:_(\d+))?_ENV$")
 CONFIG_KEY_PATTERN = re.compile(r"^DATABRICKS_APP_CONFIG(?:_(\d+))?_(.+)$")
 
 DEFAULT_POLL_SECONDS = 60
-WORK_ROOT = Path(os.getenv("DATABRICKS_APP_WORKDIR", ".apps")).resolve()
+WORK_ROOT = Path(os.getenv("DATABRICKS_APP_WORKDIR", ".dev-local")).resolve()
 CADDY_DIR = WORK_ROOT / "caddy"
 CADDYFILE_PATH = CADDY_DIR / "Caddyfile"
 CADDY_RUN_SH = CADDY_DIR / "run_caddy.sh"

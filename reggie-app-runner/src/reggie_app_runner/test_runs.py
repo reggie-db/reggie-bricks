@@ -13,6 +13,6 @@ if __name__ == "__main__":
     os.environ["DATABRICKS_APP_CONFIG_1_SOURCE"] = (
         "git@github.com:reggie-db/document-hub.git"
     )
-    os.environ["DATABRICKS_APP_CONFIG_1_COMMAND"] = "./gradlew run"
+    os.environ["DATABRICKS_APP_CONFIG_1_COMMAND"] = "./gradlew app:run"
     os.environ["DATABRICKS_APP_CONFIG_1_POLL_INTERVAL"] = "15s"
     runs.run()
