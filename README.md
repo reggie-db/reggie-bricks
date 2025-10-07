@@ -1,16 +1,21 @@
 # reggie-bricks
 
 Utilities and sample applications for Databricks projects, packaged as a
-multi-module workspace. The goal is to centralize shared helpers (sessions,
-catalog helpers, configuration loaders) so individual jobs can avoid repeating
-boilerplate or pulling in inconsistent dependencies.
+multi-module uv workspace. The goal is to centralize shared helpers—Spark
+sessions, catalog access, configuration loaders—so jobs avoid repeating
+boilerplate or pulling in unnecessary third-party dependencies.
 
 ## Repository Layout
 
-- `reggie-tools/` – core Databricks helpers that expose Spark and Workspace
-  clients, configuration resolution, and catalog utilities.
-- `reggie-apps/` – example service modules that consume `reggie-tools` inside
-  the same uv workspace.
+- `reggie-tools/` – Databricks-specific utilities (Spark client bootstrap,
+  configuration resolution, catalog helpers).
+- `reggie-core/` – lightweight shared functionality (logging primitives, common
+  utilities) intended to be reused by higher-level modules without carrying
+  Databricks dependencies.
+- `reggie-rx/` – reactive process helpers used to monitor child processes from
+  Databricks jobs.
+- `reggie-app-runner/` – orchestration layer that consumes the other modules to
+  clone/run application repos according to Databricks App configuration.
 - `build-scripts/` – tooling for keeping the workspace tidy (see *Build
   scripts* below).
 
@@ -31,22 +36,17 @@ Synchronize the workspace once to resolve all project dependencies:
 uv sync --workspace
 ```
 
-You can then execute any module script in-place. For example, to run the
-`reggie-apps` smoke script that imports `reggie-tools`:
-
-```bash
-uv run --project reggie-apps python -m reggie_apps.test_workspace
-```
-
-Or to exercise the configuration helpers directly:
+You can then execute any module script in place. For example, to exercise the
+core utilities or the app-runner locally:
 
 ```bash
 uv run --project reggie-tools python -m reggie_tools.test_configs
+uv run --project reggie-app-runner python -m reggie_app_runner.test_runs
 ```
 
 Because both modules live in the same uv workspace, local changes in
-`reggie-tools` are immediately visible to dependents without publishing wheels
-or editing `PYTHONPATH`.
+`reggie-tools`, `reggie-core`, or `reggie-rx` are immediately visible to
+dependents without publishing wheels or editing `PYTHONPATH`.
 
 ## Build Scripts
 
@@ -67,6 +67,5 @@ version control.
 ## Additional Notes
 
 - Use `uv run --project <member>` for ad-hoc commands inside a specific module.
-- Keep Databricks-specific logic inside `reggie-tools` so apps stay lean and
-  avoid redundant third-party dependencies.
-
+- Keep Databricks-specific logic inside `reggie-tools`; rely on `reggie-core`
+  for shared, dependency-light helpers when Databricks context is not required.
