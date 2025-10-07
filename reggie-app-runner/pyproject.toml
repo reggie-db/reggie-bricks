@@ -6,7 +6,7 @@ build-backend = "uv_build"
 
 [project]
 name = "reggie-app-runner"
-version = "0.0.1+gdce2016"
+version = "0.0.1+geb00725"
 requires-python = ">=3.12"
 dependencies = [
     "reggie-core @ file://${PROJECT_ROOT}/../reggie-core",
