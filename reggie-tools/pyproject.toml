@@ -1,17 +1,17 @@
 [build-system]
-requires = ["uv_build>=0.8.23,<0.9.0"]
+requires = [
+    "uv_build>=0.8.23,<0.9.0",
+]
 build-backend = "uv_build"
 
 [project]
 name = "reggie-tools"
-version = "0.0.1+g647511c"
+version = "0.0.1+g9dcc4df"
 requires-python = ">=3.12"
 dependencies = [
-  "databricks-sdk",
-  "databricks-connect<=17.1",
-  "requests",
-  "urllib3",
-  "filelock",
+    "databricks-sdk",
+    "databricks-connect<=17.1",
+    "requests",
+    "urllib3",
+    "filelock",
 ]
-
-

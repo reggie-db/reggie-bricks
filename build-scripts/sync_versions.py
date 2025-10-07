@@ -1,14 +1,21 @@
+import logging
 import pathlib
 import subprocess
 
+import tomli_w
 import tomllib
 
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+LOG = logging.getLogger(__name__)
+
 DEFAULT_VERSION = "0.0.1"
+PY_PROJECT_FILE_NAME = "pyproject.toml"
+VERSION_KEY = "version"
+DYNAMIC_KEY = "dynamic"
 
 
 def compute_version() -> str:
     try:
-        # Prefer the short commit hash
         rev = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
             cwd=pathlib.Path(__file__).resolve().parents[1],
@@ -22,28 +29,28 @@ def compute_version() -> str:
 
 
 VERSION = compute_version()
+LOG.info(f"Computed version: {VERSION}")
 
 root = pathlib.Path(__file__).resolve().parents[1]
-pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-
+pyproject_root = tomllib.loads((root / PY_PROJECT_FILE_NAME).read_text())
 members = (
-    pyproject.get("tool", {}).get("uv", {}).get("workspace", {}).get("members", [])
+    pyproject_root.get("tool", {}).get("uv", {}).get("workspace", {}).get("members", [])
 )
 if not members:
     raise SystemExit("No workspace members found under [tool.uv.workspace].")
 
 
 def candidate_projects(member_pattern: str) -> list[pathlib.Path]:
-    paths = []
+    paths: list[pathlib.Path] = []
     for p in root.glob(member_pattern):
         if not p.is_dir():
             continue
-        pj = p / "pyproject.toml"
+        pj = p / PY_PROJECT_FILE_NAME
         if pj.exists():
             paths.append(p)
         else:
             for child in p.iterdir():
-                if child.is_dir() and (child / "pyproject.toml").exists():
+                if child.is_dir() and (child / PY_PROJECT_FILE_NAME).exists():
                     paths.append(child)
     return paths
 
@@ -52,13 +59,26 @@ projects: list[pathlib.Path] = []
 seen = set()
 for m in members:
     for proj in candidate_projects(m):
-        key = proj.resolve()
-        if key not in seen:
-            seen.add(key)
+        rp = proj.resolve()
+        if rp not in seen:
+            seen.add(rp)
             projects.append(proj)
 
 for proj in projects:
-    subprocess.run(
-        ["uv", "--project", str(proj), "version", VERSION, "--no-sync"],
-        check=True,
-    )
+    py_path = proj / PY_PROJECT_FILE_NAME
+    data = tomllib.loads(py_path.read_text())
+
+    proj_tbl = data.setdefault("project", {})
+    current = proj_tbl.get(VERSION_KEY, "<none>")
+
+    # If version was dynamic, remove it so a static version applies
+    dyn = proj_tbl.get(DYNAMIC_KEY)
+    if isinstance(dyn, list) and VERSION_KEY in dyn:
+        proj_tbl[DYNAMIC_KEY] = [x for x in dyn if x != VERSION_KEY]
+        if not proj_tbl[DYNAMIC_KEY]:
+            proj_tbl.pop(DYNAMIC_KEY)
+
+    proj_tbl[VERSION_KEY] = VERSION
+    LOG.info(f"{proj.name}: {current} -> {VERSION}")
+
+    py_path.write_text(tomli_w.dumps(data))

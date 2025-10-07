@@ -1,3 +1,6 @@
 [tool.uv.workspace]
-members = ["reggie-tools", "reggie-apps"]
-
+members = [
+    "reggie-tools",
+    "reggie-apps",
+    "reggie-rx",
+]
