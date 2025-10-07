@@ -5,12 +5,12 @@ requires = [
 build-backend = "uv_build"
 
 [project]
-name = "reggie-apps"
-version = "0.0.1+g9dcc4df"
+name = "reggie-app-runner"
+version = "0.0.1+g286935b"
 requires-python = ">=3.12"
 dependencies = [
-    "reggie-tools @ file://${PROJECT_ROOT}/../reggie-tools",
+    "reggie-rx @ file://${PROJECT_ROOT}/../reggie-rx",
 ]
 
-[tool.uv.sources.reggie-tools]
+[tool.uv.sources.reggie-rx]
 workspace = true

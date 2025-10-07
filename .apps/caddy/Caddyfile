@@ -1,0 +1,12 @@
+{
+    admin off
+}
+
+:8000 {
+    @app0 path /reggie_db/test_app*
+    reverse_proxy @app0 localhost:55835
+
+    @app1 path /reggie_db/document_hub*
+    reverse_proxy @app1 localhost:55836
+
+}

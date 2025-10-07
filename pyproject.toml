@@ -1,6 +1,6 @@
 [tool.uv.workspace]
 members = [
     "reggie-tools",
-    "reggie-apps",
     "reggie-rx",
+    "reggie-app-runner",
 ]
