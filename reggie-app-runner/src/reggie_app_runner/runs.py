@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import re
@@ -14,15 +15,11 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from reactivex import Observer
+from reggie_core import logs
 from reggie_rx.procs import RxProcess
 
-logging.basicConfig(
-    level=logging.INFO,
-    stream=sys.stdout,
-    format="%(asctime)s [%(levelname)s] | %(threadName)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-LOG = logging.getLogger("runner")
+LOG = logs.logger(__name__)
+
 
 CONFIG_FILE_PATTERN = re.compile(r"^DATABRICKS_APP_CONFIG(?:_(\d+))?_ENV$")
 CONFIG_KEY_PATTERN = re.compile(r"^DATABRICKS_APP_CONFIG(?:_(\d+))?_(.+)$")
@@ -367,7 +364,8 @@ class AppWorker(threading.Thread):
 
     def _run_loop(self):
         repo_url, branch = parse_repo_target(self.cfg.source, self.cfg.branch)
-        app_dir = WORK_ROOT / f"app_{self.cfg.index}"
+        repo_url_hash = hashlib.md5(repo_url.encode()).hexdigest()
+        app_dir = WORK_ROOT / f"app_{repo_url_hash}"
         LOG.info(f"using directory {app_dir}")
         app_dir.mkdir(parents=True, exist_ok=True)
         last_head = None

@@ -5,9 +5,9 @@ requires = [
 build-backend = "uv_build"
 
 [project]
-name = "reggie-rx"
+name = "reggie-core"
 version = "0.0.1+gdce2016"
 requires-python = ">=3.12"
-dependencies = [
-    "reactivex",
-]
+dependencies = []
+
+[tool.uv.sources]

@@ -20,15 +20,14 @@ if __name__ == "__main__":
     )
 
     def _subscriber(err: bool):
-        level = logging.ERROR if err else logging.INFO
-
-        def _on_next(v: str):
+        def _level_log(v: str):
+            level = logging.ERROR if err else logging.INFO
             LOG.log(level, v)
 
         return Observer(
-            on_next=_on_next,
+            on_next=_level_log,
             on_error=lambda v: LOG.error(v),
-            on_completed=lambda: LOG.log(level, "completed") if not err else None,
+            on_completed=lambda: _level_log("completed"),
         )
 
     p = RxProcess(
