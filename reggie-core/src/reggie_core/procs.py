@@ -9,7 +9,7 @@ from typing import Callable, Iterable, List, Optional, Union
 
 from reggie_core import logs
 
-LOG = logs.logger(__name__)
+LOG = logs.logger(__name__, __file__)
 
 
 class StreamType(IntEnum):
@@ -116,6 +116,12 @@ class Worker(subprocess.Popen):
         for output_consumer in output_consumers:
             self.threads.extend(self._log_output(output_consumer))
 
+    def wait(self, timeout=None, check=False) -> int:
+        exit_code = super().wait(timeout=timeout)
+        if check and exit_code != 0:
+            raise subprocess.CalledProcessError(exit_code, self.args)
+        return exit_code
+
     def stop(self, timeout: int = 10):
         if self.poll() is None:
             self.terminate()
@@ -183,19 +189,23 @@ class WorkerOutputConsumer(Callable[[Worker, bool, str], None]):
 
     @staticmethod
     def log(
-        name: Optional[str] = None,
+        logger: Optional[Union[str, logging.Logger]] = None,
         prefix: str = None,
         stdout_level: Optional[int] = logging.INFO,
         stderr_level: Optional[int] = logging.ERROR,
     ) -> "WorkerOutputConsumer":
+        if isinstance(logger, str) and logger:
+            logger = logs.logger(logger)
+        elif logger is None:
+            logger = LOG
+
         def _log(worker: "Worker", error: bool, line: str):
             level = stderr_level if error else stdout_level
             if level is None:
                 return
             if prefix:
                 line = f"{prefix} | {line}"
-            output_logger = LOG if not name else logs.logger(name)
-            output_logger.log(level, line)
+            logger.log(level, line)
 
         return WorkerOutputConsumer.create(
             _log,

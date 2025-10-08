@@ -6,11 +6,10 @@ build-backend = "uv_build"
 
 [project]
 name = "reggie-apps"
-version = "0.0.1+gd3f9cbf"
+version = "0.0.1+g4b7f333"
 requires-python = ">=3.12"
 dependencies = [
     "reggie-core @ file://${PROJECT_ROOT}/../reggie-core",
-    "miniconda",
     "pytimeparse",
 ]
 

@@ -1,15 +1,62 @@
+import functools
+import getpass
 import hashlib
 import re
 import shutil
+import tempfile
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from filelock import FileLock, Timeout
 
 from reggie_core import logs
 
-_VERSION = 1
+_CACHE_VERSION = 1
+
+
+def path(input, resolve: bool = True, exists: bool = False) -> Optional[Path]:
+    if input is not None:
+        try:
+            if not isinstance(input, Path):
+                input = Path(input)
+            if not resolve:
+                input = input.resolve()
+            if not exists or input.exists():
+                return input
+        except Exception:
+            pass
+    return None
+
+
+@functools.cache
+def temp_dir() -> Path:
+    temp_dir = path(tempfile.gettempdir(), exists=True)
+    if not temp_dir:
+        temp_dir = path("/tmp", exists=True)
+    if not temp_dir:
+        temp_dir = path("./tmp")
+        if not temp_dir.exists:
+            temp_dir.mkdir(parents=True, exist_ok=True)
+    return temp_dir
+
+
+@functools.cache
+def home() -> Path:
+    try:
+        home_path = path(Path.home(), exists=True)
+        if home_path:
+            return home_path
+    except Exception:
+        pass
+    try:
+        username = getpass.getuser()
+    except Exception:
+        username = None
+    if not username:
+        username = "home"
+    td = temp_dir()
+    return td / username
 
 
 def cache_store(name: str, loader: Callable[[Path], None]) -> Path:
@@ -21,7 +68,7 @@ def cache_store(name: str, loader: Callable[[Path], None]) -> Path:
         cache_dir_name = name
     if not cache_dir_name:
         raise ValueError(f"invalid name:{name}")
-    cache_dir = Path.home() / ".path_cache" / (cache_dir_name + f"_v{_VERSION}")
+    cache_dir = home() / ".path_cache" / (cache_dir_name + f"_v{_CACHE_VERSION}")
 
     done_path = cache_dir / ".done"
     store_path = cache_dir / "store"
@@ -61,6 +108,7 @@ def cache_store(name: str, loader: Callable[[Path], None]) -> Path:
 
 
 if "__main__" == __name__:
+    print(home())
     store_path = cache_store(
         "test a", lambda store_path: (store_path / "test.txt").write_text("suh")
     )

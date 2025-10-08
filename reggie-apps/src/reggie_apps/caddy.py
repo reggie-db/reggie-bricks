@@ -14,8 +14,9 @@ _LOG_LEVEL_PATTERN = re.compile(r'"level"\s*:\s*"(\S+?)"', re.IGNORECASE)
 
 
 class CaddyWorker(Worker):
-    def __init__(self, config: Union[Path, Dict[str, Any], str], cwd=None):
+    def __init__(self, config: Union[Path, Dict[str, Any], str], **kwargs):
         self.caddy_file = CaddyWorker._to_caddy_file(config)
+        kwargs.setdefault("bufsize", 1)
         super().__init__(
             [
                 "caddy",
@@ -23,9 +24,8 @@ class CaddyWorker(Worker):
                 "--config",
                 os.path.abspath(self.caddy_file),
             ],
-            cwd=cwd,
-            bufsize=1,
             output_consumers=[CaddyWorker._log_handler()],
+            **kwargs,
         )
 
     def stop(self, timeout: int = 10):

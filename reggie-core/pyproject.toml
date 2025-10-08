@@ -6,7 +6,7 @@ build-backend = "uv_build"
 
 [project]
 name = "reggie-core"
-version = "0.0.1+gd3f9cbf"
+version = "0.0.1+g4b7f333"
 requires-python = ">=3.12"
 dependencies = [
     "filelock",

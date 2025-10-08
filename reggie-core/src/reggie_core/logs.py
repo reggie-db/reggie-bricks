@@ -4,7 +4,7 @@ import os
 import sys
 from typing import Dict, Iterable, Optional, Tuple
 
-_DEFAULT_LOGGER_NAME = "reggie_bricks"
+from reggie_core import paths, projects
 
 
 def logger(
@@ -23,7 +23,7 @@ def logger(
         log.setLevel(logging.DEBUG)
         handler_levels = {sys.stdout: logging.INFO, sys.stderr: logging.WARNING}
         fmt = _BracketedLevelFormatter(
-            "%(asctime)s %(level_bracketed)s | %(name)s | %(threadName)s | %(message)s",
+            "%(asctime)s %(level_bracketed)s | %(name)s%(thread_part)s | %(message)s",
             "%Y-%m-%d %H:%M:%S",
         )
         for stream, level in handler_levels.items():
@@ -81,12 +81,15 @@ def _logger_name(name: Optional[str], file: Optional[str]) -> Optional[str]:
     if name and name != "__main__":
         return name
     if file:
-        file_name = os.path.splitext(os.path.basename(file))[0]
-        return _logger_name(file_name, None)
-    return _DEFAULT_LOGGER_NAME
+        if file_path := paths.path(file):
+            file_name = os.path.splitext(os.path.basename(file_path.name))[0]
+            return _logger_name(file_name, None)
+    return projects.name()
 
 
 class _BracketedLevelFormatter(logging.Formatter):
+    _MAIN_THREAD_NAMES = [y.casefold() for y in ("MainThread", "main")]
+
     def format(self, record):
         level_bracketed = _BracketedLevelFormatter._format_level_name_bracketed(
             record.levelname
@@ -97,6 +100,14 @@ class _BracketedLevelFormatter(logging.Formatter):
         if pad > 0:
             level_bracketed = f"{level_bracketed}{' ' * pad}"
         record.level_bracketed = level_bracketed
+        thread_name = record.threadName
+        if (
+            not thread_name
+            or thread_name.casefold() in _BracketedLevelFormatter._MAIN_THREAD_NAMES
+        ):
+            record.thread_part = ""
+        else:
+            record.thread_part = f" | {record.threadName}"
         return super().format(record)
 
     @staticmethod
@@ -127,4 +138,8 @@ class _BracketedLevelFormatter(logging.Formatter):
 
 
 if __name__ == "__main__":
+    log = logger()
+    log.info("suh")
+    log = logger(None, __file__)
+    log.info("suh2")
     print(get_level("crit"))

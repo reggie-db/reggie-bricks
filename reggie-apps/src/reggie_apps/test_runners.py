@@ -3,6 +3,7 @@ import os
 from reggie_apps import runners
 
 if __name__ == "__main__":
+    os.environ["DATABRICKS_APP_CONDA_PACKAGES"] = "caddy,   curl,openjdk ,grep"
     os.environ["DATABRICKS_APP_CONFIG_0_SOURCE"] = (
         "git@github.com:reggie-db/test-app.git"
     )

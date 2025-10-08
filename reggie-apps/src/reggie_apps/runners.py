@@ -19,6 +19,8 @@ from reggie_core import logs
 from reggie_core.procs import Worker, WorkerOutputConsumer
 from reggie_rx.procs import RxProcess
 
+from reggie_apps import conda
+
 LOG = logs.logger(__name__)
 
 
@@ -266,29 +268,9 @@ def which(*names: str) -> Optional[str]:
 
 
 def install_conda_packages(packages: Iterable[str]) -> None:
-    pkgs = [p for p in packages if p]
-    if not pkgs:
-        LOG.info("no conda packages requested")
-        return
-    exe = which("micromamba", "mamba", "conda")
-    if not exe:
-        LOG.warning(
-            "no conda compatible installer found micromamba mamba conda. skipping conda installs"
-        )
-        return
-    LOG.info(f"installing conda packages with {exe}: {', '.join(pkgs)}")
-    try:
-        # prefer micromamba and mamba syntax. conda supports same install command
-        # install into current env if possible. fallback to base when conda is used and env var CONDA_PREFIX absent
-        args = [exe, "install", "-y"]
-        # conda sometimes needs -n base if not inside an env
-        if os.path.basename(exe) == "conda" and not os.environ.get("CONDA_PREFIX"):
-            args += ["-n", "base"]
-        args += pkgs
-        subprocess.run(args, check=True)
-        LOG.info("conda package installation completed")
-    except subprocess.CalledProcessError as e:
-        LOG.error(f"conda installation failed with code {e.returncode}")
+    pkgs = set([p for p in packages if p])
+    pkgs.add("caddy")
+    conda.install(*pkgs)
 
 
 @dataclass
@@ -430,7 +412,7 @@ def build_caddy_file_content(apps: List[AppConfig]) -> Dict[str, Any]:
 
 def start_caddy(caddy_config) -> subprocess.Popen:
     LOG.info(f"starting caddy on port {CADDY_PORT}")
-    proc = CaddyWorker(caddy_config, cwd=str(CADDY_DIR))
+    proc = CaddyWorker(caddy_config, cwd=str(CADDY_DIR), env=conda.env())
     return proc
 
 
@@ -479,6 +461,15 @@ def collect_global_conda_packages(raw_configs: Dict[int, Dict[str, str]]) -> Lis
 
 def run():
     ensure_git_available()
+    registration = conda.activate()
+    version = subprocess.run(
+        ["caddy", "--version"], text=True, check=True, capture_output=True
+    )
+    registration()
+    version = subprocess.run(
+        ["caddy", "--version"], text=True, check=True, capture_output=True
+    )
+    LOG.info(f"caddy version: {version}")
     WORK_ROOT.mkdir(parents=True, exist_ok=True)
 
     raw_configs = load_all_configs()
