@@ -1,3 +1,4 @@
+import concurrent
 import hashlib
 import os
 import re
@@ -13,13 +14,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from caddy import CaddyWorker
 from pytimeparse.timeparse import timeparse
 from reggie_core import logs
-from reggie_core.procs import Worker, WorkerOutputConsumer
-from reggie_rx.procs import RxProcess
 
-from reggie_apps import conda
+from reggie_apps import caddy, conda
 
 LOG = logs.logger(__name__)
 
@@ -125,17 +123,15 @@ def parse_repo_target(source: str, branch: Optional[str]) -> Tuple[str, str]:
     return source, branch or "main"
 
 
-def run_cmd(cmd_idx: int, cmd: str, cwd: Path, env: Dict[str, str]) -> RxProcess:
+def run_cmd(cmd_idx: int, cmd: str, cwd: Path, env: Dict[str, str]) -> subprocess.Popen:
     args = shlex.split(cmd)
     LOG.info(
         f"starting process {cmd_idx}: {args} in {cwd} port: {env.get('DATABRICKS_APP_PORT')}"
     )
-    log_consumer = WorkerOutputConsumer.log(prefix=f"app-{cmd_idx}")
-    proc = Worker(
+    proc = subprocess.Popen(
         args,
         cwd=str(cwd),
         env=env,
-        output_consumers=log_consumer,
         bufsize=1,
     )
     return proc
@@ -410,10 +406,18 @@ def build_caddy_file_content(apps: List[AppConfig]) -> Dict[str, Any]:
     return config
 
 
-def start_caddy(caddy_config) -> subprocess.Popen:
+def start_caddy(caddy_config) -> concurrent.futures.Future[int]:
     LOG.info(f"starting caddy on port {CADDY_PORT}")
-    proc = CaddyWorker(caddy_config, cwd=str(CADDY_DIR), env=conda.env())
-    return proc
+    caddy_log = logs.logger()
+    proc = caddy.CaddyWorker(
+        caddy_config,
+        cwd=str(CADDY_DIR),
+        check=True,
+        stdout_writer=caddy_log.info,
+        stderr_writer=caddy_log.error,
+    )
+
+    return proc.run_threaded()
 
 
 def load_all_configs() -> Dict[int, Dict[str, str]]:
@@ -461,15 +465,6 @@ def collect_global_conda_packages(raw_configs: Dict[int, Dict[str, str]]) -> Lis
 
 def run():
     ensure_git_available()
-    registration = conda.activate()
-    version = subprocess.run(
-        ["caddy", "--version"], text=True, check=True, capture_output=True
-    )
-    registration()
-    version = subprocess.run(
-        ["caddy", "--version"], text=True, check=True, capture_output=True
-    )
-    LOG.info(f"caddy version: {version}")
     WORK_ROOT.mkdir(parents=True, exist_ok=True)
 
     raw_configs = load_all_configs()

@@ -4,6 +4,7 @@ import subprocess
 
 import tomli_w
 import tomllib
+import utils
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 LOG = logging.getLogger(__name__)
@@ -14,33 +15,7 @@ VERSION_KEY = "version"
 DYNAMIC_KEY = "dynamic"
 
 
-def compute_version() -> str:
-    try:
-        rev = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=pathlib.Path(__file__).resolve().parents[1],
-            text=True,
-        ).strip()
-        if rev:
-            return f"{DEFAULT_VERSION}+g{rev}"
-    except Exception:
-        pass
-    return DEFAULT_VERSION
-
-
-VERSION = compute_version()
-LOG.info(f"Computed version: {VERSION}")
-
-root = pathlib.Path(__file__).resolve().parents[1]
-pyproject_root = tomllib.loads((root / PY_PROJECT_FILE_NAME).read_text())
-members = (
-    pyproject_root.get("tool", {}).get("uv", {}).get("workspace", {}).get("members", [])
-)
-if not members:
-    raise SystemExit("No workspace members found under [tool.uv.workspace].")
-
-
-def candidate_projects(member_pattern: str) -> list[pathlib.Path]:
+def candidate_projects(root: pathlib.Path, member_pattern: str) -> list[pathlib.Path]:
     paths: list[pathlib.Path] = []
     for p in root.glob(member_pattern):
         if not p.is_dir():
@@ -55,30 +30,56 @@ def candidate_projects(member_pattern: str) -> list[pathlib.Path]:
     return paths
 
 
-projects: list[pathlib.Path] = []
-seen = set()
-for m in members:
-    for proj in candidate_projects(m):
-        rp = proj.resolve()
-        if rp not in seen:
-            seen.add(rp)
-            projects.append(proj)
+def version() -> str:
+    try:
+        rev = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=pathlib.Path(__file__).resolve().parents[1],
+            text=True,
+        ).strip()
+        if rev:
+            return f"{DEFAULT_VERSION}+g{rev}"
+    except Exception:
+        pass
+    return DEFAULT_VERSION
 
-for proj in projects:
-    py_path = proj / PY_PROJECT_FILE_NAME
-    data = tomllib.loads(py_path.read_text())
 
-    proj_tbl = data.setdefault("project", {})
-    current = proj_tbl.get(VERSION_KEY, "<none>")
+def main():
+    root = utils.repo_root()
+    pyproject_root = tomllib.loads((root / PY_PROJECT_FILE_NAME).read_text())
+    members = (
+        pyproject_root.get("tool", {})
+        .get("uv", {})
+        .get("workspace", {})
+        .get("members", [])
+    )
+    if not members:
+        raise SystemExit("No workspace members found under [tool.uv.workspace].")
 
-    # If version was dynamic, remove it so a static version applies
-    dyn = proj_tbl.get(DYNAMIC_KEY)
-    if isinstance(dyn, list) and VERSION_KEY in dyn:
-        proj_tbl[DYNAMIC_KEY] = [x for x in dyn if x != VERSION_KEY]
-        if not proj_tbl[DYNAMIC_KEY]:
-            proj_tbl.pop(DYNAMIC_KEY)
+    projects: list[pathlib.Path] = []
+    seen = set()
+    for m in members:
+        for proj in candidate_projects(root, m):
+            rp = proj.resolve()
+            if rp not in seen:
+                seen.add(rp)
+                projects.append(proj)
 
-    proj_tbl[VERSION_KEY] = VERSION
-    LOG.info(f"{proj.name}: {current} -> {VERSION}")
+    for proj in projects:
+        py_path = proj / PY_PROJECT_FILE_NAME
+        data = tomllib.loads(py_path.read_text())
 
-    py_path.write_text(tomli_w.dumps(data))
+        proj_tbl = data.setdefault("project", {})
+        current = proj_tbl.get(VERSION_KEY, "<none>")
+
+        # If version was dynamic, remove it so a static version applies
+        dyn = proj_tbl.get(DYNAMIC_KEY)
+        if isinstance(dyn, list) and VERSION_KEY in dyn:
+            proj_tbl[DYNAMIC_KEY] = [x for x in dyn if x != VERSION_KEY]
+            if not proj_tbl[DYNAMIC_KEY]:
+                proj_tbl.pop(DYNAMIC_KEY)
+
+        proj_tbl[VERSION_KEY] = VERSION
+        LOG.info(f"{proj.name}: {current} -> {VERSION}")
+
+        py_path.write_text(tomli_w.dumps(data))

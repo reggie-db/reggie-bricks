@@ -3,5 +3,6 @@ name = "build-scripts"
 version = "0.0.1"
 requires-python = ">=3.9"
 dependencies = [
-    "tomli-w"
+    "tomli-w",
+    "packaging"
 ]

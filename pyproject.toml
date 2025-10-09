@@ -2,6 +2,5 @@
 members = [
     "reggie-core",
     "reggie-tools",
-    "reggie-rx",
     "reggie-apps",
 ]

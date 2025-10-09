@@ -1,214 +1,273 @@
-import io
-import logging
-import subprocess
+"""Async subprocess helpers with stdout/stderr plumbing utilities."""
+
+import asyncio
+import concurrent
+import signal
 import threading
-from dataclasses import dataclass, field
-from enum import IntEnum
-from io import IOBase
-from typing import Callable, Iterable, List, Optional, Union
+from typing import Any, Callable, List, Optional, Set
 
-from reggie_core import logs
-
-LOG = logs.logger(__name__, __file__)
+from reggie_core import funcs, logs
 
 
-class StreamType(IntEnum):
-    STDIN = 1
-    STDOUT = 2
-    STDERR = 3
+class Worker:
+    """Launch a subprocess and stream its output to optional callbacks.
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.is_input = self.name == "STD_IN"
-        self.process_stream_name = self.name.lower()
+    Creates an asyncio subprocess using the provided args/kwargs, optionally wiring stdout/stderr
+    lines to the given writer callables. Supports awaiting in the current loop or running in a
+    background thread that manages its own event loop.
+    """
 
-    def process_stream(self, process) -> Optional[IOBase]:
-        stream = getattr(process, self.process_stream_name)
-        if stream is not None and not isinstance(stream, IOBase):
-            stream = io.BytesIO(str(stream).encode())
-        return stream
+    _WORKER_THREAD_INDEXES: Set[int] = set()
+    _WORKER_THREAD_INDEXES_LOCK = threading.Lock()
 
-    @staticmethod
-    def values(input: Optional[bool] = None) -> Iterable["StreamType"]:
-        if input is None:
-            return iter(StreamType)
-        elif input:
-            return [StreamType.STDIN]
-        else:
-            return [StreamType.STDOUT, StreamType.STDERR]
-
-    @staticmethod
-    def of(value) -> "StreamType":
-        if value is not None:
-            if isinstance(value, StreamType):
-                return value
-            elif not isinstance(value, int):
-                value = str(value).strip()
-            for target in StreamType:
-                if isinstance(value, int):
-                    if target.value == value:
-                        return target
-                    else:
-                        continue
-                else:
-                    if target.name.casefold() == value.casefold():
-                        return target
-                    if target.process_stream_name.casefold() == value.casefold():
-                        return target
-        raise ValueError(f"Invalid {__class__.__name__} value: {value}")
-
-
-class StreamTarget(IntEnum):
-    PIPE = abs(subprocess.PIPE)
-    STDOUT = abs(subprocess.STDOUT)
-    DEVNULL = abs(subprocess.DEVNULL)
-
-    @staticmethod
-    def of(value) -> "StreamTarget":
-        if value is not None:
-            if isinstance(value, StreamTarget):
-                return value
-            elif isinstance(value, int):
-                value = abs(value)
-            else:
-                value = str(value).strip()
-            for target in StreamTarget:
-                if isinstance(value, int):
-                    if target.value == value:
-                        return target
-                    else:
-                        continue
-                else:
-                    if target.name.casefold() == value.casefold():
-                        return target
-        raise ValueError(f"Invalid {__class__.__name__} value: {value}")
-
-
-class Worker(subprocess.Popen):
     def __init__(
         self,
         *args,
-        output_consumers: Union[
-            Iterable["WorkerOutputConsumer"], "WorkerOutputConsumer"
-        ] = None,
+        stdout_writer: Optional[Callable[[str], None]] = None,
+        stderr_writer: Optional[Callable[[str], None]] = None,
+        check: bool = False,
+        terminate_timeout: int = 10,
         **kwargs,
     ):
-        if isinstance(output_consumers, WorkerOutputConsumer):
-            output_consumers = [output_consumers]
-        elif not output_consumers:
-            output_consumers = []
-        for output_consumer in output_consumers:
-            for stream_type in StreamType.values(input=False):
-                if stream_type not in output_consumer.stream_types:
-                    continue
-                stream_name = stream_type.process_stream_name
-                stream_target_arg = kwargs.get(stream_name)
-                if stream_target_arg is not None:
-                    stream_target = StreamTarget.of(stream_target_arg)
-                    if stream_target != StreamTarget.PIPE:
-                        raise ValueError(
-                            f"invalid stream target - name:{stream_name} target:{stream_target.name}"
-                        )
-                kwargs[stream_name] = subprocess.PIPE
-                kwargs["text"] = True
-        super().__init__(*args, **kwargs)
-        self.threads = []
-        for output_consumer in output_consumers:
-            self.threads.extend(self._log_output(output_consumer))
+        """Initialize a subprocess configuration and optional output writers.
 
-    def wait(self, timeout=None, check=False) -> int:
-        exit_code = super().wait(timeout=timeout)
-        if check and exit_code != 0:
-            raise subprocess.CalledProcessError(exit_code, self.args)
-        return exit_code
+        Args:
+            *args: Positional command/arguments for create_subprocess_exec.
+            stdout_writer: Callback invoked per decoded stdout line.
+            stderr_writer: Callback invoked per decoded stderr line.
+            check: If True, raise ValueError on non-zero exit codes.
+            terminate_timeout: Seconds to wait after terminate() before kill().
+            **kwargs: Passed through to create_subprocess_exec.
+        """
+        self._args = args
+        self._stdout_writer = stdout_writer
+        self._stderr_writer = stderr_writer
+        self._check = check
+        self._terminate_timeout = terminate_timeout
+        self._kwargs = kwargs
 
-    def stop(self, timeout: int = 10):
-        if self.poll() is None:
-            self.terminate()
+    def run(self) -> asyncio.Task[int]:
+        """Schedule the subprocess for execution and return an awaitable task.
+
+        Returns:
+            asyncio.Task[int]: Completes with the process exit code (or raises if check=True).
+        """
+        done_callbacks: List[Callable[[asyncio.subprocess.Process], None]] = []
+        task = asyncio.create_task(self._run_async(done_callbacks))
+
+        def _done_callback(sub_process: asyncio.subprocess.Process):
+            # Note: add_done_callback supplies the Task, not the subprocess.
+            for done_callback in done_callbacks:
+                done_callback(sub_process)
+
+        task.add_done_callback(_done_callback)
+
+        return task
+
+    def run_threaded(self) -> concurrent.futures.Future[int]:
+        """Run the subprocess in a dedicated thread and return a Future.
+
+        A new event loop is created in the worker thread. The returned Future resolves
+        to the process exit code (or exception).
+        """
+
+        async def _thread_run_async(fut: concurrent.futures.Future[int]):
             try:
-                self.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                self.kill()
-        for t in self.threads:
-            t.join(timeout=timeout)
+                task = self.run()
 
-    def _log_output(self, output_consumer: "WorkerOutputConsumer"):
-        threads = []
-        for stream_type in StreamType.values(input=False):
-            if stream_type not in output_consumer.stream_types:
-                continue
-            thread_name = f"{self.pid}_{stream_type.process_stream_name}"
-            t = threading.Thread(
-                target=self._pump_log_output,
-                args=(output_consumer, stream_type),
-                name=thread_name,
-                daemon=True,
-            )
-            t.start()
-            threads.append(t)
-        return threads
+                def _done_callback(_):
+                    if not task.done():
+                        task.cancel()
 
-    def _pump_log_output(
-        self, output_consumer: "WorkerOutputConsumer", stream_type: StreamType
+                fut.add_done_callback(_done_callback)
+
+                fut.set_result(await task)
+            except BaseException as e:
+                fut.set_exception(e)
+
+        def _thread_run(idx: int, fut: concurrent.futures.Future[int]):
+            event_loop = asyncio.new_event_loop()
+            try:
+                asyncio.set_event_loop(event_loop)
+                event_loop.run_until_complete(_thread_run_async(fut))
+            finally:
+                event_loop.close()
+                self._worker_thread_index_release(idx)
+
+        idx = self._worker_thread_index_acquire()
+        future = concurrent.futures.Future()
+        thread_name = f"{Worker.__name__.lower()}-{idx}"
+        thread = threading.Thread(
+            target=_thread_run,
+            args=(
+                idx,
+                future,
+            ),
+            name=thread_name,
+        )
+        thread.start()
+        return future
+
+    async def _run_async(
+        self, done_callbacks: List[Callable[[asyncio.subprocess.Process], None]]
     ):
-        stream = stream_type.process_stream(self)
-        for line in iter(stream.readline, ""):
-            output_consumer(self, stream_type == StreamType.STDERR, line.rstrip("\r\n"))
+        """Execute the subprocess and propagate output through registered writers.
 
+        Starts the process, launches reader tasks when writers are provided, and waits for
+        completion. On non-zero exit and check=True, raises a ValueError with a message
+        similar to subprocess.CalledProcessError formatting.
+        """
+        commands = self._run_args(done_callbacks)
+        kwargs = self._run_kwargs(done_callbacks)
+        sub_process = await asyncio.subprocess.create_subprocess_exec(
+            *commands, **kwargs
+        )
+        # Lazy-start stream readers only when writers are provided.
+        output_writer_tasks = {}
 
-@dataclass
-class WorkerOutputConsumer(Callable[[Worker, bool, str], None]):
-    stdout: bool = field(default=False)
-    stderr: bool = field(default=True)
-    stream_types: List[StreamType] = field(default_factory=list, init=False)
+        for error in [False, True]:
+            if self._output_writer(error) is None:
+                continue
+            output_writer_tasks[error] = asyncio.create_task(
+                self._output_read(sub_process, error)
+            )
 
-    def __post_init__(self):
-        self.stream_types.extend(
-            [
-                stream_type
-                for stream_type in StreamType.values()
-                if (self.stdout and stream_type == StreamType.STDOUT)
-                or (self.stderr and stream_type == StreamType.STDERR)
-            ]
+        def _sub_process_done():
+            return sub_process.returncode is not None
+
+        try:
+            results = await asyncio.gather(
+                sub_process.wait(), *output_writer_tasks.values()
+            )
+        finally:
+            for task in output_writer_tasks.values():
+                task.cancel()
+            if not _sub_process_done():
+                sub_process.terminate()
+                # Note: a timeout here will raise; kill() below will not run unless caught upstream.
+                await asyncio.shield(
+                    asyncio.wait_for(
+                        sub_process.wait(), timeout=self._terminate_timeout
+                    )
+                )
+                if not _sub_process_done():
+                    sub_process.kill()
+        exit_code = results[0]
+        if not self._check or exit_code == 0:
+            return exit_code
+        if exit_code < 0:
+            try:
+                sig = signal.Signals(-exit_code)
+                msg = f"Command {commands!r} died with {sig!r}."
+            except ValueError:
+                msg = f"Command {commands!r} died with unknown signal {-exit_code}."
+        else:
+            msg = f"Command {commands!r} returned non-zero exit status {exit_code}."
+        raise ValueError(msg)
+
+    def _run_args(
+        self, done_callbacks: List[Callable[[asyncio.subprocess.Process], None]]
+    ) -> List[str]:
+        """Return the ordered list of command arguments for subprocess execution."""
+        return list(funcs.to_iter(self._args))
+
+    def _run_kwargs(
+        self, done_callbacks: List[Callable[[asyncio.subprocess.Process], None]]
+    ) -> dict[str, Any]:
+        """Combine subprocess keyword arguments with stdout/stderr configuration."""
+        output_writers_kwargs = {}
+        for error in [False, True]:
+            output_writers_kwargs[error] = self._output_writer_kwargs(error)
+
+        return funcs.merge(
+            self._kwargs,
+            *output_writers_kwargs.values(),
+            update=False,
         )
 
+    def _output_writer(self, error: bool):
+        """Return the appropriate writer for stdout or stderr."""
+        return self._stderr_writer if error else self._stdout_writer
+
+    def _output_writer_kwargs(self, error: bool) -> dict[str, Any]:
+        """Generate subprocess pipe configuration for the requested output stream."""
+        output_kwargs = {}
+        writer = self._output_writer(error)
+        if writer is not None:
+            output_name = "stderr" if error else "stdout"
+            output_kwargs[output_name] = asyncio.subprocess.PIPE
+        return output_kwargs
+
+    async def _output_read(self, process: asyncio.subprocess.Process, error: bool):
+        """Read lines from the subprocess stream and forward them to the writer.
+
+        Decodes bytes using the default encoding and strips trailing newlines.
+        """
+        reader = process.stderr if error else process.stdout
+        while True:
+            line_bytes = await reader.readline()
+            if not line_bytes:
+                break
+            line_str = line_bytes.decode().rstrip()
+            self._output_write(process, error, line_str)
+
+    def _output_write(
+        self, process: asyncio.subprocess.Process, error: bool, line_str: str
+    ):
+        """Invoke the writer callback, if configured, with the decoded line."""
+        writer = self._output_writer(error)
+        if writer is not None:
+            writer(line_str)
+
     @staticmethod
-    def create(
-        handler: Callable[[Worker, bool, str], None] = None,
-        stdout: bool = True,
-        stderr: bool = True,
-    ) -> "WorkerOutputConsumer":
-        class WorkerOutputConsumerImpl(WorkerOutputConsumer):
-            def __init__(self):
-                super().__init__(stdout, stderr)
-
-            def __call__(self, worker: "Worker", error: bool, line: str):
-                handler(worker, error, line)
-
-        return WorkerOutputConsumerImpl()
+    def _worker_thread_index_acquire() -> int:
+        """Reserve and return a unique integer index for a worker thread."""
+        with Worker._WORKER_THREAD_INDEXES_LOCK:
+            idx = -1
+            while True:
+                idx += 1
+                idx_len = len(Worker._WORKER_THREAD_INDEXES)
+                Worker._WORKER_THREAD_INDEXES.add(idx)
+                if idx_len < len(Worker._WORKER_THREAD_INDEXES):
+                    return idx
 
     @staticmethod
-    def log(
-        logger: Optional[Union[str, logging.Logger]] = None,
-        prefix: str = None,
-        stdout_level: Optional[int] = logging.INFO,
-        stderr_level: Optional[int] = logging.ERROR,
-    ) -> "WorkerOutputConsumer":
-        if isinstance(logger, str) and logger:
-            logger = logs.logger(logger)
-        elif logger is None:
-            logger = LOG
+    def _worker_thread_index_release(idx: int) -> bool:
+        """Release a previously reserved worker thread index.
 
-        def _log(worker: "Worker", error: bool, line: str):
-            level = stderr_level if error else stdout_level
-            if level is None:
-                return
-            if prefix:
-                line = f"{prefix} | {line}"
-            logger.log(level, line)
+        Returns:
+            True if the index was present and removed; False otherwise.
+        """
+        if idx in Worker._WORKER_THREAD_INDEXES:
+            with Worker._WORKER_THREAD_INDEXES_LOCK:
+                if idx in Worker._WORKER_THREAD_INDEXES:
+                    Worker._WORKER_THREAD_INDEXES.remove(idx)
+                    return True
+        return False
 
-        return WorkerOutputConsumer.create(
-            _log,
-            stdout=stdout_level is not None,
-            stderr=stderr_level is not None,
-        )
+
+async def main(worker: Worker):
+    """Quick manual exercise when running the module stand-alone."""
+    return await worker.run()
+
+
+if __name__ == "__main__":
+    commands = [
+        "bash",
+        "-c",
+        "echo 'hello dude' 1>&2; echo 'suh';sleep 5; exit 1",
+    ]
+    log = logs.logger(__name__)
+    worker = Worker(
+        *commands,
+        stdout_writer=log.info,
+        stderr_writer=log.error,
+        check=False,
+    )
+    print(asyncio.run(main(worker)))
+    futures = []
+    for i in range(10):
+        futures.append(worker.run_threaded())
+    for future in futures:
+        print(future.result())
+    print(worker.run_threaded().result())
