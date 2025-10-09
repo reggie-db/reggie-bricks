@@ -95,12 +95,7 @@ def _to_caddy_file(config: Union[str, Path, Dict[str, Any]]) -> Path:
         return Path(caddy_file.name)
 
 
-async def main():
-    """Example entrypoint: run Caddy with empty config and log output."""
+if __name__ == "__main__":
     log = logs.logger(__name__)
     worker = CaddyWorker(config={}, stdout_writer=log.info, stderr_writer=log.error)
-    await worker.run()
-
-
-if __name__ == "__main__":
-    print(asyncio.run(main()))
+    worker.run_threaded(daemon=False).result()
