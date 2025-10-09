@@ -5,7 +5,7 @@ requires = [
 build-backend = "uv_build"
 
 [project]
-name = "reggie-apps"
+name = "reggie-app-runner"
 version = "0.0.1+g4b7f333"
 requires-python = ">=3.13"
 dependencies = [

@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from pytimeparse.timeparse import timeparse
 from reggie_core import logs
 
-from reggie_apps import caddy, conda
+from reggie_app_runner import caddy, conda
 
 LOG = logs.logger(__name__)
 

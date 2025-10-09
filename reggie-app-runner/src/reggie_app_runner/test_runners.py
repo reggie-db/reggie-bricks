@@ -1,6 +1,6 @@
 import os
 
-from reggie_apps import runners
+from reggie_app_runner import runners
 
 if __name__ == "__main__":
     os.environ["DATABRICKS_APP_CONDA_PACKAGES"] = "caddy,   curl,openjdk ,grep"

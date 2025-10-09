@@ -14,7 +14,7 @@ from reggie_core import logs, paths, projects
 
 _CONDA_DIR_NAME = ".miniforge3"
 
-LOG = logs.logger(__name__, __file__)
+LOG = logs.logger(__name__)
 
 
 @functools.cache

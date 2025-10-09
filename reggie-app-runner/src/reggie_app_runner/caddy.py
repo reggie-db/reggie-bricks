@@ -5,12 +5,12 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Dict, Union
 
 from reggie_core import funcs, jsons, logs
-from reggie_core.procs import Worker
+from reggie_core.procs import Worker, WorkerFuture
 
-from reggie_apps import conda
+from reggie_app_runner import conda
 
 LOG = logs.logger(__name__)
 
@@ -30,13 +30,11 @@ class CaddyWorker(Worker):
         super().__init__(**kwargs)
         self.config = config
 
-    def _run_args(
-        self, done_callbacks: List[Callable[[asyncio.subprocess.Process], None]]
-    ):
+    def _run_args(self, fut: WorkerFuture):
         """Build the command-line for Caddy and schedule temp-file cleanup on completion."""
-        commands = super()._run_args(done_callbacks)
+        commands = super()._run_args(fut)
         caddy_file = _to_caddy_file(self.config)
-        done_callbacks.append(lambda _: caddy_file.unlink())
+        fut.add_done_callback(lambda: caddy_file.unlink())
         commands.extend(
             [
                 "caddy",
@@ -47,11 +45,9 @@ class CaddyWorker(Worker):
         )
         return commands
 
-    def _run_kwargs(
-        self, done_callbacks: List[Callable[[asyncio.subprocess.Process], None]]
-    ):
+    def _run_kwargs(self, fut: WorkerFuture):
         """Augment kwargs with environment variables required to run Caddy via Conda."""
-        kwargs = super()._run_kwargs(done_callbacks)
+        kwargs = super()._run_kwargs(fut)
         kwargs["env"] = funcs.merge(kwargs.get("env", None), _env(), update=False)
         return kwargs
 

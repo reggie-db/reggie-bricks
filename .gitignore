@@ -168,3 +168,4 @@ prpr/
 # Dev-local
 # -----------------------
 .dev-local/
+nohup.out
