@@ -18,6 +18,8 @@ from reggie_core import logging_auto_config, parsers, paths
 _LOGGING_SERVER = parsers.parse_bool(os.getenv("LOGGING_SERVER"))
 _LOGGING_PRINT = parsers.parse_bool(os.getenv("LOGGING_PRINT", True))
 
+logging_auto_config()
+
 
 def logger(*names: Optional[str]) -> logging.Logger:
     """
@@ -32,7 +34,7 @@ def logger(*names: Optional[str]) -> logging.Logger:
     defined below when attaching handlers.
     """
     name = _logger_name(*names)
-    logging_auto_config()
+
     return logging.getLogger(name) if name else logging.getLogger()
 
 
