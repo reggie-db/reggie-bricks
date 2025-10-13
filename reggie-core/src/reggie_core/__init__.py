@@ -70,17 +70,3 @@ def _auto_config_handler(stream, error: bool) -> logging.Handler:
 
 if __name__ == "__main__":
     logging_auto_config()
-    for i in range(4):
-        if i > 1:
-            fmt = str(i) + " - [%(levelname)s]%(message)s"
-            logging.basicConfig(
-                level=logging.DEBUG,
-                format=fmt,
-            )
-        log = logging.getLogger()
-        if i > 0:
-            log.setLevel(logging.DEBUG)
-        log.debug(f"debug {i}")
-        log.info(f"info {i}")
-        log.warning(f"warning {i}")
-        log.error(f"error {i}")
