@@ -9,6 +9,7 @@ _LOGGING_AUTO_CONFIG_MARK = object()
 
 
 def logging_auto_config():
+    print("logging_auto_config check")
     if _log_empty(logging.getLogger()):
         with _LOGGING_AUTO_CONFIG_LOCK:
             if _log_empty(logging.getLogger()):
