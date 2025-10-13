@@ -25,6 +25,7 @@ def _log_empty(log):
 
 
 def _logging_auto_config():
+    print("logging_auto_config")
     logging.basicConfig(level=logging.INFO, handlers=list(_auto_config_handlers()))
 
     def _has_auto_config_handlers():
