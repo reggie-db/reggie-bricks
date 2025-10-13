@@ -11,14 +11,48 @@ import logging
 import os
 import platform
 import sys
-from typing import Dict, Optional, Tuple
+import threading
 from collections.abc import Callable, Iterable
 
-from reggie_core import logging_auto_config, parsers, paths
 
+from reggie_core import parsers, paths
+
+_LOGGING_AUTO_CONFIG = parsers.parse_bool(os.getenv("LOGGING_AUTO_CONFIG", True))
 _LOGGING_SERVER = parsers.parse_bool(os.getenv("LOGGING_SERVER"))
 _LOGGING_PRINT = parsers.parse_bool(os.getenv("LOGGING_PRINT", True))
+_AUTO_CONFIG_MARK = object()
 
+
+def auto_config():
+    if not _LOGGING_AUTO_CONFIG:
+        return
+
+    def _has_auto_config_handlers():
+        if handlers := logging.getLogger().handlers:
+            for handler in handlers:
+                if _AUTO_CONFIG_MARK is getattr(
+                    handler, "auto_config_mark", None
+                ):
+                    return True
+        return False
+
+    if _has_auto_config_handlers():
+        return
+
+    logging.basicConfig(level=logging.INFO, handlers=list(_auto_config_handlers()))
+
+    if not _has_auto_config_handlers():
+        return
+
+    logging_basic_config = logging.basicConfig
+
+    def logging_basic_config_wrapper(*args, **kwargs):
+        kwargs.get("logging_basic_config_wrapper")
+        if not kwargs.get("force") and _has_auto_config_handlers():
+            kwargs["force"] = True
+        logging_basic_config(*args, **kwargs)
+
+    logging.basicConfig = logging_basic_config_wrapper
 
 def logger(*names: str | None) -> logging.Logger:
     """
@@ -32,7 +66,7 @@ def logger(*names: str | None) -> logging.Logger:
     The returned logger does not configure handlers here. Use Handler and Formatter
     defined below when attaching handlers.
     """
-    logging_auto_config()
+    auto_config()
     name = _logger_name(*names)
     return logging.getLogger(name) if name else logging.getLogger()
 
@@ -117,6 +151,28 @@ def _logger_name(*names: str | None):
                     continue
             return name
     return None
+
+
+
+
+
+def _auto_config_handlers() -> Iterable[logging.Handler]:
+    for error in [False, True]:
+        stream = sys.stdout if not error else sys.stderr
+        yield _auto_config_handler(stream, error)
+
+
+def _auto_config_handler(stream, error: bool) -> logging.Handler:
+    from reggie_core.logs import Formatter, Handler
+
+    handler = Handler(stream=stream)
+    handler.auto_config_mark = _AUTO_CONFIG_MARK
+    handler.setFormatter(Formatter(stream=stream))
+    if error:
+        handler.setLevel(logging.WARN)
+    else:
+        handler.addFilter(lambda record: record.levelno < logging.WARNING)
+    return handler
 
 
 @functools.cache
@@ -332,11 +388,3 @@ class Formatter(logging.Formatter):
         return out or ""
 
 
-if __name__ == "__main__":
-    log = logger()
-    log.info("suh")
-    log.critical("suh")
-    log.warning("suh")
-    log = logger(None, __file__)
-    log.warning("suh2")
-    print(get_level("crit"))

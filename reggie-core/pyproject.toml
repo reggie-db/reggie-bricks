@@ -14,6 +14,6 @@ dependencies = [
 ]
 
 [project.entry-points.sitecustomize]
-logging_auto_config = "reggie_core:logging_auto_config"
+logs_auto_config = "reggie_core.logs:auto_config"
 
 
