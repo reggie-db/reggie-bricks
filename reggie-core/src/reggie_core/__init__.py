@@ -9,11 +9,13 @@ _LOGGING_AUTO_CONFIG_MARK = object()
 
 
 def logging_auto_config():
-    print("logging_auto_config check")
     if _log_empty(logging.getLogger()):
         with _LOGGING_AUTO_CONFIG_LOCK:
             if _log_empty(logging.getLogger()):
                 _logging_auto_config()
+
+
+logging_auto_config()
 
 
 def _log_empty(log):
@@ -26,7 +28,6 @@ def _log_empty(log):
 
 
 def _logging_auto_config():
-    print("logging_auto_config")
     logging.basicConfig(level=logging.INFO, handlers=list(_auto_config_handlers()))
 
     def _has_auto_config_handlers():
