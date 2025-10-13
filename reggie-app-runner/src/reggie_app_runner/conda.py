@@ -63,25 +63,13 @@ def update(
         "name": env_name,
         "dependencies": dependencies,
     }
-    log = logs.logger("conda_update")
+
     with NamedTemporaryFile(mode="w", suffix=".yml") as f:
         conda_env_content = yaml.dump(conda_env)
-        print(conda_env_content)
         f.write(conda_env_content)
         f.flush()
-
-        update_command = command(
-            "env",
-            "update",
-            "-f",
-            f.name,
-            "--prune",
-            _out=lambda line: log.info(f"{env_name} | {line.rstrip()}"),
-            _err=lambda line: log.warning(f"{env_name} | {line.rstrip()}"),
-            _bg=True,
-        )
-
-        update_command().wait()
+        update_command = command("env", "update", "-f", f.name, "--prune")
+        update_command()
 
 
 def env(env_name: str = _CONDA_ENV_DEFAULT) -> dict[str, str]:

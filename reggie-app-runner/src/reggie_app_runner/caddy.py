@@ -3,11 +3,10 @@ import logging
 import os
 import re
 import tempfile
-import time
 from pathlib import Path
 from typing import Any, Dict, Union
 
-from reggie_core import jsons, logs
+from reggie_core import jsons, logs, paths
 
 from reggie_app_runner import conda
 
@@ -67,12 +66,8 @@ def _to_caddy_file(config: Union[str, Path, Dict[str, Any]]) -> Path:
         config_extension = "json"
     else:
         config = str(config)
-        if path := conda.paths.path(config):
-            try:
-                if path.is_file():
-                    return path
-            except Exception:
-                pass
+        if path := paths.path(config, exists=True):
+            return path
         config_content = config
         config_extension = "caddyfile"
     with tempfile.NamedTemporaryFile(
@@ -84,9 +79,8 @@ def _to_caddy_file(config: Union[str, Path, Dict[str, Any]]) -> Path:
 
 
 if __name__ == "__main__":
-    try:
-        caddy = start(
-            """
+    caddy = start(
+        """
 
     :8080 {
         log {
@@ -95,7 +89,5 @@ if __name__ == "__main__":
         respond "Hello, world!"
     }
     """,
-            _iter=True,
-        ).wait()
-    finally:
-        time.sleep(10)
+        _iter=True,
+    ).wait()
