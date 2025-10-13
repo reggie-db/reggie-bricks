@@ -17,4 +17,4 @@ dependencies = [
 logging_auto_config = "reggie_core:logging_auto_config"
 
 [tool.uv.build-backend]
-data = { purelib = ["src/sitecustomize.py"] }
+data = { purelib = "src/sitecustomize.py" }

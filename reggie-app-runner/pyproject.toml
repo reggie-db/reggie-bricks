@@ -10,7 +10,6 @@ version = "0.0.1+g4b7f333"
 requires-python = ">=3.10"
 dependencies = [
     "reggie-core @ file://${PROJECT_ROOT}/../reggie-core",
-    "aiolibs-executor",
     "pytimeparse",
     "pyaml",
     "sh",
