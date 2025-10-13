@@ -7,14 +7,14 @@ build-backend = "uv_build"
 [project]
 name = "reggie-core"
 version = "0.0.1+g4b7f333"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "filelock",
-    "sitecustomize-entrypoints"
+    "sitecustomize-entrypoints",
 ]
 
-[tool.uv.build-backend]
-data = { platlib = "src/sitecustomize.py" }
-
-[project.entry-points."sitecustomize"]
+[project.entry-points.sitecustomize]
 logging_auto_config = "reggie_core:logging_auto_config"
+
+[tool.uv.build-backend.data]
+platlib = "src/sitecustomize.py"

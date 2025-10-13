@@ -7,13 +7,13 @@ build-backend = "uv_build"
 [project]
 name = "reggie-app-runner"
 version = "0.0.1+g4b7f333"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "reggie-core @ file://${PROJECT_ROOT}/../reggie-core",
     "aiolibs-executor",
     "pytimeparse",
     "pyaml",
-    "sh"
+    "sh",
 ]
 
 [tool.uv.sources.reggie-core]
