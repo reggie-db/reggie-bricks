@@ -173,7 +173,6 @@ async def main():
     aliases["docker"] = docker.path() or "udocker"
     update(*deps, env_name="cool")
     start("caddy", "--version", env_name="cool").wait()
-    start("caddy", "adapt", config="./test.caddyfile", env_name="cool").wait()
     start(
         "docker",
         "run",

@@ -151,28 +151,29 @@ def _isatty(stream=None) -> bool:
 def _is_server(stream=None) -> bool:
     """
     Return True if this process looks like a server or non interactive runtime.
-
-    Decision order
-    1) LOGGING_SERVER env flag forces True
-    2) Windows and macOS return False early
-    3) Non TTY returns True
-    4) Missing DISPLAY and WAYLAND_DISPLAY returns True
-    5) Presence of CI, KUBERNETES_SERVICE_HOST, CONTAINER, SYSTEMD_EXEC_PID returns True
-    6) System account on Linux returns True
     """
+    # Explicit override via env var — allows forcing server behavior manually.
     if _LOGGING_SERVER:
         return True
+    # Treat macOS and Windows as user machines; generally not headless servers.
     if platform.system() in ("Windows", "Darwin"):
         return False
+    # Databricks notebooks expose ENABLE_REPL_LOGGING; if true, it's an interactive session.
+    if parsers.parse_bool(os.getenv("ENABLE_REPL_LOGGING")):
+        return False
+    # If stdout/stderr is not attached to a TTY, assume non-interactive (daemon, cron, etc.).
     if not _isatty(stream):
         return True
+    # Lack of DISPLAY or WAYLAND_DISPLAY means no GUI session; likely a headless server.
     if not (os.getenv("DISPLAY") or os.getenv("WAYLAND_DISPLAY")):
         return True
+    # Typical CI, container, or system-managed process indicators.
     if any(
         os.getenv(k)
         for k in ("CI", "KUBERNETES_SERVICE_HOST", "CONTAINER", "SYSTEMD_EXEC_PID")
     ):
         return True
+    # Fallback: treat system accounts (UID < 1000) as server processes.
     return _is_system_account()
 
 
@@ -197,21 +198,10 @@ class Handler(logging.StreamHandler):
     RESET = "\033[0m"
 
     def __init__(self, *args, stream=None, **kwargs):
-        """
-        Create a handler targeting the given stream.
-
-        stream defaults to sys.stderr in the base class.
-        Server mode is computed once per handler using the provided stream.
-        """
         super().__init__(*args, stream=stream, **kwargs)
         self._server = _is_server(stream)
 
     def emit(self, record):
-        """
-        Emit a record. If routing to print is enabled, set a transient attribute
-        record.print = True and send formatted text through print, otherwise
-        defer to the base StreamHandler.
-        """
         if self._is_print(record):
             record.print = True
             print(self.format(record, True))
@@ -219,12 +209,6 @@ class Handler(logging.StreamHandler):
             super().emit(record)
 
     def format(self, record, disable_color=False):
-        """
-        Format a record, optionally disabling color.
-
-        Color is applied only when the target stream supports ANSI and a color
-        mapping exists for the record level.
-        """
         msg = super().format(record)
         if disable_color or not self._supports_color():
             return msg
