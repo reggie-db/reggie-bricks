@@ -7,7 +7,8 @@ thread while streaming output line by line to optional callbacks.
 import asyncio
 from dataclasses import dataclass
 from subprocess import CalledProcessError
-from typing import Callable, List, Type
+from typing import List, Type
+from collections.abc import Callable
 
 from reggie_core import logs
 
@@ -23,14 +24,14 @@ class Output:
         return self.line.decode(errors="replace").rstrip()
 
 
-OutputWriter = Type[Callable[[Output], None]]
+OutputWriter = type[Callable[[Output], None]]
 
 
 @dataclass
 class CompletedProcess:
     process: asyncio.subprocess.Process
-    stdout: List[Output]
-    stderr: List[Output]
+    stdout: list[Output]
+    stderr: list[Output]
 
     @property
     def stdout_str(self) -> str:
@@ -40,8 +41,8 @@ class CompletedProcess:
     def stderr_str(self) -> str:
         return self._output_str(self.stderr)
 
-    def _output_str(self, output: List[Output]) -> str:
-        return "\n".join((str(line) for line in output)) if output is not None else None
+    def _output_str(self, output: list[Output]) -> str:
+        return "\n".join(str(line) for line in output) if output is not None else None
 
 
 async def run(

@@ -1,7 +1,7 @@
 import logging
 import sys
 import threading
-from typing import Iterable
+from collections.abc import Iterable
 
 _LOGGING_AUTO_CONFIG_LOCK = threading.Lock()
 _LOGGING_AUTO_CONFIG_MARK = object()

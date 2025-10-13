@@ -11,7 +11,8 @@ import logging
 import os
 import platform
 import sys
-from typing import Callable, Dict, Iterable, Optional, Tuple
+from typing import Dict, Optional, Tuple
+from collections.abc import Callable, Iterable
 
 from reggie_core import logging_auto_config, parsers, paths
 
@@ -19,7 +20,7 @@ _LOGGING_SERVER = parsers.parse_bool(os.getenv("LOGGING_SERVER"))
 _LOGGING_PRINT = parsers.parse_bool(os.getenv("LOGGING_PRINT", True))
 
 
-def logger(*names: Optional[str]) -> logging.Logger:
+def logger(*names: str | None) -> logging.Logger:
     """
     Return a logger for the resolved name or the root logger.
 
@@ -36,7 +37,7 @@ def logger(*names: Optional[str]) -> logging.Logger:
     return logging.getLogger(name) if name else logging.getLogger()
 
 
-def get_levels() -> Iterable[Tuple[int, str]]:
+def get_levels() -> Iterable[tuple[int, str]]:
     """
     Return all known logging levels as (value, name) pairs.
 
@@ -46,7 +47,7 @@ def get_levels() -> Iterable[Tuple[int, str]]:
     return [(val, name) for name, val in logging._nameToLevel.items()]
 
 
-def get_level(level, default=None) -> Tuple[int, str]:
+def get_level(level, default=None) -> tuple[int, str]:
     """
     Resolve a level specifier to a (value, name) pair.
 
@@ -80,7 +81,7 @@ def get_level(level, default=None) -> Tuple[int, str]:
         if match:
             return val, name
     if not isinstance(level, int):
-        matched: Dict[str, int] = {}
+        matched: dict[str, int] = {}
         for val, name in level_names:
             if name.casefold().startswith(level.casefold()):
                 matched.setdefault(name, val)
@@ -94,7 +95,7 @@ def get_level(level, default=None) -> Tuple[int, str]:
     raise ValueError(f"Invalid level: {level}")
 
 
-def _logger_name(*names: Optional[str]):
+def _logger_name(*names: str | None):
     """
     Resolve a logger name from a list of candidates.
 

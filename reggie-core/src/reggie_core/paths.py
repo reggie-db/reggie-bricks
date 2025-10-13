@@ -6,7 +6,8 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
+from collections.abc import Callable
 
 from filelock import FileLock, Timeout
 
@@ -15,7 +16,7 @@ from reggie_core import logs
 _CACHE_VERSION = 1
 
 
-def path(input, resolve: bool = True, exists: bool = False) -> Optional[Path]:
+def path(input, resolve: bool = True, exists: bool = False) -> Path | None:
     if input is not None:
         try:
             if not isinstance(input, Path):

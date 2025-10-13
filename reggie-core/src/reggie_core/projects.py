@@ -74,7 +74,7 @@ def name(input=None, default: str = None, git_origin: bool = True) -> str:
     raise ValueError(f"Could not determine project name for {input}")
 
 
-def _remote_origin_name(path=None) -> Optional[str]:
+def _remote_origin_name(path=None) -> str | None:
     path = paths.path(path, exists=False)
     if path and path.is_file():
         path = path.parent

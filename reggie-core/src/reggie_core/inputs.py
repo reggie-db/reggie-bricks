@@ -11,8 +11,8 @@ def is_interactive() -> bool:
 
 
 def select_choice(
-    title: str, choices: List[str], skip_single_choice: bool = True
-) -> Optional[str]:
+    title: str, choices: list[str], skip_single_choice: bool = True
+) -> str | None:
     """
     Display a numbered list of choices and prompt the user to select one.
 

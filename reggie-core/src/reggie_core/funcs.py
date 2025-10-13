@@ -1,4 +1,5 @@
-from typing import Any, Iterable, Sequence, TypeVar, Union
+from typing import Any, TypeVar, Union
+from collections.abc import Iterable, Sequence
 
 T = TypeVar("T")
 
@@ -32,7 +33,7 @@ def merge(
     return result
 
 
-def to_iter(*value: Union[Iterable[T], T, None]) -> Iterable[T]:
+def to_iter(*value: Iterable[T] | T | None) -> Iterable[T]:
     """
     Ensure a value or values are returned as an iterable.
 
@@ -53,7 +54,7 @@ def to_iter(*value: Union[Iterable[T], T, None]) -> Iterable[T]:
     return value
 
 
-def to_seq(*value: Union[Sequence[T], T, None]) -> Sequence[T]:
+def to_seq(*value: Sequence[T] | T | None) -> Sequence[T]:
     """
     Ensure a value or values are returned as a sequence.
 
