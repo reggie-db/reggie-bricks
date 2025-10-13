@@ -10,6 +10,11 @@ version = "0.0.1+g4b7f333"
 requires-python = ">=3.13"
 dependencies = [
     "filelock",
+    "sitecustomize-entrypoints"
 ]
 
-[tool.uv.sources]
+[tool.uv.build-backend]
+data = { platlib = "src/sitecustomize.py" }
+
+[project.entry-points."sitecustomize"]
+logging_auto_config = "reggie_core:logging_auto_config"

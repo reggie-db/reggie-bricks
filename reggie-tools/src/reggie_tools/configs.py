@@ -2,6 +2,7 @@
 
 import functools
 import json
+import logging
 import os
 import subprocess
 import threading
@@ -12,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
 from pyspark.sql import SparkSession
-from reggie_core import inputs, logs
+from reggie_core import inputs
 
 from reggie_tools import catalogs, clients, runtimes
 
@@ -81,7 +82,7 @@ def get(profile: Optional[str] = None) -> Config:
             raise e
 
     cfg = _config(profile)
-    logs.logger().debug("config created - profile:%s config:%s", profile, cfg)
+    logging.getlogger().debug("config created - profile:%s config:%s", profile, cfg)
     if not profile:
         _config_default = cfg
     return cfg
@@ -166,7 +167,7 @@ def _cli_run(
     args.extend(popenargs)
     if profile:
         args.extend(["--profile", profile])
-    logs.logger().debug(
+    logging.getlogger().debug(
         "cli run - args:%s stdout:%s stderr:%s check:%s", args, stdout, stderr, check
     )
     completed_process = subprocess.run(
@@ -185,7 +186,7 @@ def _cli_version() -> Dict[str, Any]:
         if runtimes.version()
         else _cli_run("version", check=False, stderr=subprocess.DEVNULL)[0]
     )
-    logs.logger().debug(f"version:{version}")
+    logging.getlogger().debug(f"version:{version}")
     return version
 
 
@@ -193,7 +194,7 @@ def _cli_version() -> Dict[str, Any]:
 def _cli_auth_profiles() -> Optional[Dict[str, Any]]:
     """Return cached authentication profiles discovered via the Databricks CLI."""
     auth_profiles = _cli_run("auth", "profiles")[0]
-    logs.logger().debug(f"auth profiles:{auth_profiles}")
+    logging.getlogger().debug(f"auth profiles:{auth_profiles}")
     return auth_profiles
 
 

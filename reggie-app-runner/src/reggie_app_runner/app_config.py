@@ -129,7 +129,7 @@ class AppConfig:
             k: v for k, v in os.environ.items() if k.upper() not in EXCLUDE_ENV_KEYS
         }
 
-        def resolve_value(
+        def _resolve_value(
             field_name: str, *defaults, transform=None, required=False
         ) -> Optional[str]:
             """
@@ -165,8 +165,8 @@ class AppConfig:
                 )
             return None
 
-        source = resolve_value("SOURCE", required=True)
-        command = resolve_value("COMMAND", required=True)
+        source = _resolve_value("SOURCE", required=True)
+        command = _resolve_value("COMMAND", required=True)
 
         config = {
             "index": index,
@@ -178,9 +178,9 @@ class AppConfig:
             if field_name in config:
                 continue
             if "branch" == field_name:
-                value = resolve_value(field_name, "main")
+                value = _resolve_value(field_name, "main")
             elif "path" == field_name:
-                value = resolve_value(
+                value = _resolve_value(
                     field_name,
                     lambda: _default_path_from_github(source),
                     lambda: f"app-{index}",
@@ -191,11 +191,11 @@ class AppConfig:
                     if value != "/" and value.endswith("/"):
                         value = value[:-1]
             elif "poll_seconds" == field_name:
-                value = resolve_value(
+                value = _resolve_value(
                     field_name, DEFAULT_POLL_SECONDS, transform=_parse_duration
                 )
             elif "env_vars" == field_name:
-                value = resolve_value(
+                value = _resolve_value(
                     field_name,
                     transform=lambda x: {
                         k[len("ENV_") :]: v
@@ -204,7 +204,7 @@ class AppConfig:
                     },
                 )
             else:
-                value = resolve_value(field_name)
+                value = _resolve_value(field_name)
             if value is not None:
                 config[field_name] = value
 

@@ -12,6 +12,8 @@ dependencies = [
     "reggie-core @ file://${PROJECT_ROOT}/../reggie-core",
     "aiolibs-executor",
     "pytimeparse",
+    "pyaml",
+    "sh"
 ]
 
 [tool.uv.sources.reggie-core]

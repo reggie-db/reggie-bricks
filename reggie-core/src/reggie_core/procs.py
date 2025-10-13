@@ -5,286 +5,168 @@ thread while streaming output line by line to optional callbacks.
 """
 
 import asyncio
-import concurrent
-import inspect
-import threading
-import time
+from dataclasses import dataclass
 from subprocess import CalledProcessError
-from typing import Any, Callable, List, Optional, Set
+from typing import Callable, List, Type
 
-from reggie_core import funcs, logs
+from reggie_core import logs
 
 LOG = logs.logger(__name__)
 
 
-class WorkerFuture(concurrent.futures.Future[int]):
-    """A Future tracking an asyncio subprocess with safe result/exception handling."""
+@dataclass
+class Output:
+    process: asyncio.subprocess.Process
+    line: bytes
 
-    def __init__(self):
-        super().__init__()
-        self.process: asyncio.subprocess.Process | None = None
-
-    def add_done_callback(self, fn) -> None:
-        """Register a callback; wrap zero-argument callables automatically."""
-        if callable(fn) and len(inspect.signature(fn).parameters) == 0:
-            super().add_done_callback(lambda _: fn())
-        else:
-            super().add_done_callback(fn)
-
-    def set_result(self, result: int, skip_if_done: bool = False) -> bool:
-        """Set result unless already completed."""
-        if skip_if_done and self.done():
-            return False
-        super().set_result(result)
-        return True
-
-    def set_exception(self, exception, skip_if_done: bool = False) -> bool:
-        """Set exception unless already done; log if suppressed."""
-        if skip_if_done and self.done():
-            cancel_exception = isinstance(
-                exception, (asyncio.CancelledError, concurrent.futures.CancelledError)
-            )
-            if not cancel_exception:
-                if self.cancelled():
-                    current_exception = None
-                else:
-                    try:
-                        current_exception = self.exception()
-                    except BaseException as e:
-                        current_exception = e
-                if current_exception is None or current_exception != exception:
-                    LOG.debug("Future done. Suppressing exception", exception)
-            return False
-        super().set_exception(exception)
-        return True
+    def __str__(self):
+        return self.line.decode(errors="replace").rstrip()
 
 
-class Worker:
-    """Run a subprocess and stream its output to callbacks.
+OutputWriter = Type[Callable[[Output], None]]
 
-    Supports both async execution and threaded mode for use from sync code.
-    When stdout/stderr writers are provided, each line is decoded and sent
-    without the trailing newline.
-    """
 
-    _WORKER_THREAD_INDEXES: Set[int] = set()
-    _WORKER_THREAD_INDEXES_LOCK = threading.Lock()
+@dataclass
+class CompletedProcess:
+    process: asyncio.subprocess.Process
+    stdout: List[Output]
+    stderr: List[Output]
 
-    def __init__(
-        self,
+    @property
+    def stdout_str(self) -> str:
+        return self._output_str(self.stdout)
+
+    @property
+    def stderr_str(self) -> str:
+        return self._output_str(self.stderr)
+
+    def _output_str(self, output: List[Output]) -> str:
+        return "\n".join((str(line) for line in output)) if output is not None else None
+
+
+async def run(
+    *args: str,
+    **kwargs,
+) -> CompletedProcess:
+    output_writer_names = ["stdout_writer", "stderr_writer"]
+    communicate = not any(name in kwargs for name in output_writer_names)
+    output_sinks: dict[bool, asyncio.StreamReader()] = {}
+    if not communicate:
+        for error in [False, True]:
+            output_writer_name = "stderr_writer" if error else "stdout_writer"
+            if output_writer_name not in kwargs:
+                output_sink = asyncio.StreamReader()
+                output_sinks[error] = output_sink
+                kwargs[output_writer_name] = lambda output: output_sink.feed_data(
+                    output.line
+                )
+
+    proc = await start(
         *args,
-        stdout_writer: Optional[Callable[[str], None]] = None,
-        stderr_writer: Optional[Callable[[str], None]] = None,
-        check: bool = False,
-        terminate_timeout: int = 10,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
         **kwargs,
-    ):
-        """Initialize subprocess configuration."""
-        self._args = args
-        self._stdout_writer = stdout_writer
-        self._stderr_writer = stderr_writer
-        self._check = check
-        self._terminate_timeout = terminate_timeout
-        self._kwargs = kwargs
+    )
+    if communicate:
+        stdout, stderr = await proc.communicate()
+        return stdout, stderr, proc
+    else:
+        await proc.wait()
 
-    async def run(self) -> int:
-        """Run asynchronously and return exit code."""
-        return await self._run()
+        async def _output(error: bool) -> bytes:
+            output_sink = output_sinks.get(error)
+            if output_sink is None:
+                return None
+            else:
+                output_sink.feed_eof()
+                return await output_sink.read()
 
-    async def _run(self, workerFuture: WorkerFuture = None) -> int:
-        """Execute subprocess, stream output, and handle completion."""
-        if workerFuture is None:
-            workerFuture = WorkerFuture()
+        stdout = await _output(False)
+        stderr = await _output(True)
+        return stdout, stderr, proc
 
-        # Launch subprocess with appropriate pipes
-        commands = self._run_args(workerFuture)
-        kwargs = self._run_kwargs(workerFuture)
-        workerFuture.process = await asyncio.subprocess.create_subprocess_exec(
-            *commands, **kwargs
-        )
 
-        try:
-            # Use a TaskGroup to manage process wait and readers
-            async with asyncio.TaskGroup() as tg:
-                wait_task = tg.create_task(workerFuture.process.wait())
-                for error in [False, True]:
-                    if self._output_writer(error):
-                        tg.create_task(self._output_read(workerFuture.process, error))
+async def start(
+    *args: str,
+    check: bool = False,
+    stdout_writer: OutputWriter = None,
+    stderr_writer: OutputWriter = None,
+    **kwargs,
+) -> asyncio.subprocess.Process:
+    for error in [False, True]:
+        output_name = "stdout" if not error else "stderr"
+        kwargs.setdefault(output_name, asyncio.subprocess.PIPE)
 
-            exit_code = await wait_task
+    proc = await asyncio.create_subprocess_exec(*args, **kwargs)
 
-            # Raise on non-zero exit if check=True
-            if self._check and exit_code != 0:
-                raise CalledProcessError(exit_code, commands)
-
-            workerFuture.set_result(exit_code, skip_if_done=True)
-            return exit_code
-        except BaseException as e:
-            workerFuture.set_exception(e, skip_if_done=True)
-            raise
-        finally:
-            # Ensure process termination if still alive
-            await self._terminate_process(workerFuture.process)
-
-    def run_threaded(self, daemon: Optional[bool] = None) -> WorkerFuture:
-        """Run subprocess in background thread and return a WorkerFuture."""
-
-        def _thread_run(fut: WorkerFuture):
-            event_loop = asyncio.new_event_loop()
-            try:
-                run_task = event_loop.create_task(self._run(fut))
-
-                # Cancel if future cancelled
-                def _done_callback():
-                    if not run_task.done():
-                        event_loop.call_soon_threadsafe(run_task.cancel)
-
-                fut.add_done_callback(_done_callback)
-                asyncio.set_event_loop(event_loop)
-                event_loop.run_until_complete(asyncio.shield(run_task))
-            except asyncio.CancelledError as e:
-                fut.set_exception(e, skip_if_done=True)
-            except BaseException as e:
-                fut.set_exception(e, skip_if_done=True)
-            finally:
-                # Clean up event loop resources
-                try:
-                    event_loop.run_until_complete(event_loop.shutdown_asyncgens())
-                    event_loop.run_until_complete(
-                        event_loop.shutdown_default_executor()
-                    )
-                except Exception:
-                    pass
-                event_loop.close()
-
-        # Acquire thread index for naming/debugging
-        idx = self._worker_thread_index_acquire()
-        future = WorkerFuture()
-        future.add_done_callback(lambda: self._worker_thread_index_release(idx))
-        thread = threading.Thread(
-            target=_thread_run,
-            args=(future,),
-            name=f"worker-{idx}",
-            daemon=daemon,
-        )
-        thread.start()
-        return future
-
-    def _run_args(self, workerFuture: WorkerFuture) -> List[str]:
-        """Build argv list for subprocess."""
-        return list(funcs.to_iter(self._args))
-
-    def _run_kwargs(self, workerFuture: WorkerFuture) -> dict[str, Any]:
-        """Combine user kwargs and stdout/stderr pipe settings."""
-        output_writers_kwargs = {
-            False: self._output_writer_kwargs(False),
-            True: self._output_writer_kwargs(True),
-        }
-        return funcs.merge(self._kwargs, *output_writers_kwargs.values(), update=False)
-
-    def _output_writer(self, error: bool):
-        """Return writer for stdout (False) or stderr (True)."""
-        return self._stderr_writer if error else self._stdout_writer
-
-    def _output_writer_kwargs(self, error: bool) -> dict[str, Any]:
-        """Return asyncio pipe config for given stream."""
-        writer = self._output_writer(error)
-        if not writer:
-            return {}
-        return {"stderr" if error else "stdout": asyncio.subprocess.PIPE}
-
-    async def _output_read(self, process: asyncio.subprocess.Process, error: bool):
-        """Read lines from process output and forward to writer."""
-        reader = process.stderr if error else process.stdout
+    async def _output_write(error, output_writer):
+        output_stream = proc.stdout if not error else proc.stderr
         while True:
-            line_bytes = await reader.readline()
-            if not line_bytes:
+            line = await output_stream.readline()
+            if not line:
                 break
-            line = line_bytes.decode().rstrip()
-            self._output_write(process, error, line)
+            output_writer(Output(proc, line))
 
-    def _output_write(
-        self, process: asyncio.subprocess.Process, error: bool, line: str
-    ):
-        """Send decoded line to the proper writer."""
-        writer = self._output_writer(error)
-        if writer:
-            writer(line)
+    output_writer_tasks = []
 
-    async def _terminate_process(self, process: asyncio.subprocess.Process):
-        """Terminate and kill process if still alive."""
-        if process.returncode is not None:
-            return
-
-        async def wait_for(timeout: Optional[float] = None):
-            await asyncio.shield(asyncio.wait_for(process.wait(), timeout=timeout))
-
-        # Try terminate first
-        process.terminate()
-        try:
-            if self._terminate_timeout:
-                await wait_for(self._terminate_timeout)
-                return
-        except asyncio.TimeoutError:
-            LOG.warning(
-                "Terminate timeout (%s) for process %s",
-                self._terminate_timeout,
-                process.pid,
+    for error in [False, True]:
+        if output_writer := stderr_writer if error else stdout_writer:
+            output_writer_task = asyncio.create_task(
+                _output_write(error, output_writer)
             )
-        except BaseException:
-            pass
+            output_writer_tasks.append(output_writer_task)
 
-        # Escalate to kill if still running
-        if process.returncode is None:
-            process.kill()
-            LOG.warning("Killing process %s", process.pid)
-            await wait_for(None)
-            LOG.warning("Killed process %s", process.pid)
+    if not output_writer_tasks:
+        return proc
 
-    @staticmethod
-    def _worker_thread_index_acquire() -> int:
-        """Reserve and return a unique worker thread index."""
-        with Worker._WORKER_THREAD_INDEXES_LOCK:
-            idx = 0
-            while idx in Worker._WORKER_THREAD_INDEXES:
-                idx += 1
-            Worker._WORKER_THREAD_INDEXES.add(idx)
-            return idx
+    proc_wait = proc.wait
 
-    @staticmethod
-    def _worker_thread_index_release(idx: int) -> bool:
-        """Release reserved thread index."""
-        with Worker._WORKER_THREAD_INDEXES_LOCK:
-            Worker._WORKER_THREAD_INDEXES.discard(idx)
-            return True
+    async def _proc_wait_wrapper():
+        coros = [proc_wait(), *output_writer_tasks]
+        try:
+            results = await asyncio.gather(*coros)
+            exit_code = results[0]
+            if check and exit_code != 0:
+                raise CalledProcessError(exit_code, args)
+            return exit_code
+        except Exception:
+            for task in output_writer_tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*coros, return_exceptions=True)
+            raise
+
+    proc.wait = _proc_wait_wrapper
+    return proc
 
 
-async def main(worker: Worker):
+async def main():
     """Manual entry point for testing."""
-    return await worker.run()
+    log = logs.logger("test")
+    commands = ["bash", "-c", "echo wowy; echo cool;  echo tester >&2; exit 1"]
+    stdout, stderr, proc = await run(
+        *commands,
+    )
+    print(stdout.decode())
+
+    proc = await start(
+        *commands,
+        check=False,
+        stdout_writer=log.info,
+        stderr_writer=log.error,
+    )
+    print(await proc.wait())
+    completed_process = await run(
+        "bash",
+        "-c",
+        "echo hello; echo dude; echo test >&2; exit 1",
+        check=False,
+        stderr_writer=log.error,
+    )
+    print(type(completed_process[0]))
+
+    print(completed_process[0].decode())
 
 
 if __name__ == "__main__":
-    # Example manual test: run a long-lived bash loop
-    worker = Worker(
-        "bash",
-        "-c",
-        "for s in INT TERM HUP QUIT ABRT ALRM USR1 USR2 PIPE TSTP CHLD; "
-        'do trap "echo Signal: $s" $s; done; while :; do echo tick; sleep 1; done',
-        check=True,
-        terminate_timeout=3,
-    )
-
-    fut = worker.run_threaded(daemon=False)
-    time.sleep(3)
-    fut.cancel()
-
-    try:
-        print(fut.result())
-    except BaseException as e:
-        print("Error:", e)
-
-    # Demonstrate guarded set_exception
-    fut = WorkerFuture()
-    fut.set_exception(ValueError("test123"), skip_if_done=False)
-    fut.set_exception(ValueError("test"), skip_if_done=True)
+    asyncio.run(main())

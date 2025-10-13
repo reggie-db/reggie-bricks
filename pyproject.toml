@@ -4,3 +4,6 @@ members = [
     "reggie-tools",
     "reggie-app-runner",
 ]
+
+[tool.uv.build-backend]
+data = { purelib = "${PROJECT_ROOT}/uvrc/sitecustomize.py" }

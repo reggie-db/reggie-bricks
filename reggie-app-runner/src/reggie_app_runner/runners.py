@@ -408,7 +408,7 @@ def build_caddy_file_content(apps: List[AppConfig]) -> Dict[str, Any]:
 
 def start_caddy(caddy_config) -> concurrent.futures.Future[int]:
     LOG.info(f"starting caddy on port {CADDY_PORT}")
-    caddy_log = logs.logger()
+    caddy_log = logs.logger("caddy")
     proc = caddy.CaddyWorker(
         caddy_config,
         cwd=str(CADDY_DIR),
