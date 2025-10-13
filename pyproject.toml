@@ -4,6 +4,3 @@ members = [
     "reggie-tools",
     "reggie-app-runner",
 ]
-
-[tool.uv.build-backend]
-data = { purelib = "reggie-core/src/sitecustomize.py" }
