@@ -11,9 +11,9 @@ from tempfile import NamedTemporaryFile
 from typing import Dict
 from urllib.request import urlretrieve
 
-import docker
 import sh
 import yaml
+from reggie_app_runner import docker
 from reggie_core import logs, paths
 
 _CONDA_DIR_NAME = ".miniforge3"
