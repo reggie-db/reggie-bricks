@@ -13,7 +13,7 @@ import platform
 import sys
 from typing import Callable, Dict, Iterable, Optional, Tuple
 
-from reggie_core import parsers, paths
+from reggie_core import logging_auto_config, parsers, paths
 
 _LOGGING_SERVER = parsers.parse_bool(os.getenv("LOGGING_SERVER"))
 _LOGGING_PRINT = parsers.parse_bool(os.getenv("LOGGING_PRINT", True))
@@ -31,6 +31,7 @@ def logger(*names: Optional[str]) -> logging.Logger:
     The returned logger does not configure handlers here. Use Handler and Formatter
     defined below when attaching handlers.
     """
+    logging_auto_config()
     name = _logger_name(*names)
     return logging.getLogger(name) if name else logging.getLogger()
 

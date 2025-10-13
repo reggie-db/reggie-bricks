@@ -8,19 +8,10 @@ _LOGGING_AUTO_CONFIG_MARK = object()
 
 
 def logging_auto_config():
-    if _log_empty(logging.getLogger()):
+    if not logging.getLogger().handlers:
         with _LOGGING_AUTO_CONFIG_LOCK:
-            if _log_empty(logging.getLogger()):
+            if not logging.getLogger().handlers:
                 _logging_auto_config()
-
-
-def _log_empty(log):
-    if log.handlers:
-        for handler in log.handlers:
-            handler_level = handler.level
-            if handler_level != logging.NOTSET:
-                return False
-    return True
 
 
 def _logging_auto_config():
