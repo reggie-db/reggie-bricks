@@ -15,13 +15,13 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from pytimeparse.timeparse import timeparse
-from reggie_core import logs
+from reggie_core import logs, paths
 
 from reggie_app_runner import caddy, conda
 
 LOG = logs.logger(__name__)
 
-
+paths.get("")
 CONFIG_FILE_PATTERN = re.compile(r"^DATABRICKS_APP_CONFIG(?:_(\d+))?_ENV$")
 CONFIG_KEY_PATTERN = re.compile(r"^DATABRICKS_APP_CONFIG(?:_(\d+))?_(.+)$")
 

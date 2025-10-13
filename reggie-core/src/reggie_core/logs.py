@@ -11,9 +11,7 @@ import logging
 import os
 import platform
 import sys
-import threading
 from collections.abc import Callable, Iterable
-
 
 from reggie_core import parsers, paths
 
@@ -27,32 +25,31 @@ def auto_config():
     if not _LOGGING_AUTO_CONFIG:
         return
 
-    def _has_auto_config_handlers():
+    def _has_auto_config_handler():
         if handlers := logging.getLogger().handlers:
             for handler in handlers:
-                if _AUTO_CONFIG_MARK is getattr(
-                    handler, "auto_config_mark", None
-                ):
+                if _AUTO_CONFIG_MARK is getattr(handler, "auto_config_mark", None):
                     return True
         return False
 
-    if _has_auto_config_handlers():
+    if _has_auto_config_handler():
         return
 
     logging.basicConfig(level=logging.INFO, handlers=list(_auto_config_handlers()))
 
-    if not _has_auto_config_handlers():
+    if not _has_auto_config_handler():
         return
 
     logging_basic_config = logging.basicConfig
 
     def logging_basic_config_wrapper(*args, **kwargs):
         kwargs.get("logging_basic_config_wrapper")
-        if not kwargs.get("force") and _has_auto_config_handlers():
+        if not kwargs.get("force") and _has_auto_config_handler():
             kwargs["force"] = True
         logging_basic_config(*args, **kwargs)
 
     logging.basicConfig = logging_basic_config_wrapper
+
 
 def logger(*names: str | None) -> logging.Logger:
     """
@@ -151,9 +148,6 @@ def _logger_name(*names: str | None):
                     continue
             return name
     return None
-
-
-
 
 
 def _auto_config_handlers() -> Iterable[logging.Handler]:
@@ -386,5 +380,3 @@ class Formatter(logging.Formatter):
                 else:
                     out = value
         return out or ""
-
-

@@ -2,7 +2,6 @@
 
 import os
 import sys
-from typing import List, Optional
 
 
 def is_interactive() -> bool:

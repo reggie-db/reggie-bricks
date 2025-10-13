@@ -13,8 +13,9 @@ from urllib.request import urlretrieve
 
 import sh
 import yaml
-from reggie_app_runner import docker
 from reggie_core import logs, paths
+
+from reggie_app_runner import docker
 
 _CONDA_DIR_NAME = ".miniforge3"
 _CONDA_ENV_DEFAULT = "base"
@@ -83,6 +84,21 @@ def update(
         update_command().wait()
 
 
+def env(env_name: str = _CONDA_ENV_DEFAULT) -> dict[str, str]:
+    output = str(command("run", "-n", env_name, "env", "-0")())
+    env_pairs = output.strip("\0").split("\0")
+    return dict(pair.split("=", 1) for pair in env_pairs if "=" in pair)
+
+
+def env_command(env_name: str = _CONDA_ENV_DEFAULT) -> sh.Command:
+    conda_env = env(env_name)
+    return sh.bash.bake(
+        "-c",
+        '"$0" "$@";',
+        _env=conda_env,
+    )
+
+
 def start(
     *args,
     env_name: str = _CONDA_ENV_DEFAULT,
@@ -129,7 +145,7 @@ def _install_conda(dir: Path) -> Path:
         log.info(f"Installing Conda - path:{installer_path}")
         subprocess.run([installer_path, "-b", "-p", dir], check=True, text=True)
 
-    return paths.cache_store(url + "v3", _run_installer)
+    return paths.cache_store(url + "v4", _run_installer)
 
 
 def _install_url() -> str:

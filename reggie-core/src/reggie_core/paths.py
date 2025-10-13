@@ -5,9 +5,8 @@ import re
 import shutil
 import tempfile
 import time
-from pathlib import Path
-from typing import Optional
 from collections.abc import Callable
+from pathlib import Path
 
 from filelock import FileLock, Timeout
 

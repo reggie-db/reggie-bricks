@@ -3,7 +3,6 @@ import importlib
 import subprocess
 from pathlib import Path
 from types import ModuleType
-from typing import Optional
 
 import tomllib
 
