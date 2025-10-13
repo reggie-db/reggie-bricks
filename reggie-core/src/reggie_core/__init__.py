@@ -68,5 +68,4 @@ def _auto_config_handler(stream, error: bool) -> logging.Handler:
     return handler
 
 
-if __name__ == "__main__":
-    logging_auto_config()
+logging_auto_config()
