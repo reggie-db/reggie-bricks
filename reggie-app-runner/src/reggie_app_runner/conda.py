@@ -25,7 +25,7 @@ _CONDA_DEPENDENCY_PATTERN = re.compile(
 
 
 @functools.cache
-def path() -> Path:
+def exec() -> Path:
     """Return the conda executable path. Install Miniforge to ~/.miniforge3 if needed."""
     conda_dir = paths.home() / _CONDA_DIR_NAME
     bin_path = conda_dir / "bin" / "conda"
@@ -43,9 +43,41 @@ def path() -> Path:
     return bin_path
 
 
-def command(conda_command, *args, **kwargs) -> sh.Command:
-    args = [conda_command] + list(args)
-    return sh.Command(path()).bake(*args, **kwargs)
+def run_command(
+    env_name: str = _CONDA_ENV_DEFAULT,
+    aliases: Dict[str, str] = None,
+) -> sh.Command:
+    scipt_commands = [
+        f". $({exec()} info --base)/etc/profile.d/conda.sh",
+        f"conda activate {env_name}",
+    ]
+    if aliases:
+        for k, v in aliases.items():
+            scipt_commands.append(f"{k}() " + "{ " + str(v) + ' "$@"; }')
+    shell_command = '"$0" "$@";'
+    scipt_commands.append(shell_command)
+
+    def _log_msg(ran, call_args, pid=None):
+        _, _, shell_command_args = ran.partition(shell_command + "'")
+        if shell_command_args := shell_command_args.strip():
+            ran = f"conda run -n {env_name} {shell_command_args}"
+        return f"{ran}, pid {pid}"
+
+    return sh.sh.bake("-c", "; ".join(scipt_commands), _log_msg=_log_msg)
+
+
+def run(
+    *args,
+    env_name: str = _CONDA_ENV_DEFAULT,
+    aliases: Dict[str, str] = None,
+    **kwargs,
+):
+    cmd = run_command(env_name, aliases)
+    log = logs.logger("conda_run")
+    kwargs.setdefault("_out", lambda line: log.info(f"{env_name} | {line.rstrip()}"))
+    kwargs.setdefault("_err", lambda line: log.warning(f"{env_name} | {line.rstrip()}"))
+    kwargs.setdefault("_bg", True)
+    return cmd(*args, **kwargs)
 
 
 def update(
@@ -68,48 +100,14 @@ def update(
         conda_env_content = yaml.dump(conda_env)
         f.write(conda_env_content)
         f.flush()
-        update_command = command("env", "update", "-f", f.name, "--prune")
-        update_command()
+        file_name = f.name
 
+        def _log_msg(ran, call_args, pid=None):
+            ran = ran.replace(str(exec()), "conda")
+            ran = ran.replace(file_name, f"[{env_name}.yml]")
+            return f"{ran}, pid {pid}"
 
-def env(env_name: str = _CONDA_ENV_DEFAULT) -> dict[str, str]:
-    output = str(command("run", "-n", env_name, "env", "-0")())
-    env_pairs = output.strip("\0").split("\0")
-    return dict(pair.split("=", 1) for pair in env_pairs if "=" in pair)
-
-
-def env_command(env_name: str = _CONDA_ENV_DEFAULT) -> sh.Command:
-    conda_env = env(env_name)
-    return sh.bash.bake(
-        "-c",
-        '"$0" "$@";',
-        _env=conda_env,
-    )
-
-
-def start(
-    *args,
-    env_name: str = _CONDA_ENV_DEFAULT,
-    aliases: Dict[str, str] = None,
-    **kwargs,
-):
-    args = list(args)
-    if args and aliases:
-        bash_command = '"$0" "$@";'
-        for k, v in reversed(aliases.items()):
-            bash_command = f"{k}() " + "{ " + str(v) + ' "$@"; }; ' + bash_command
-        args = [
-            "bash",
-            "-c",
-            bash_command,
-        ] + args
-    args = ["run", "-n", env_name] + args
-    log = logs.logger("conda_run")
-    kwargs.setdefault("_out", lambda line: log.info(f"{env_name} | {line.rstrip()}"))
-    kwargs.setdefault("_err", lambda line: log.warning(f"{env_name} | {line.rstrip()}"))
-    kwargs.setdefault("_bg", True)
-    run_command = command(*args, **kwargs)
-    return run_command()
+        sh.Command(exec())("env", "update", "-f", f.name, "--prune", _log_msg=_log_msg)
 
 
 def dependency_name(dependency: str) -> str:
@@ -176,8 +174,8 @@ async def main():
         deps.append("udocker")
     aliases["docker"] = docker.path() or "udocker"
     update(*deps, env_name="cool")
-    start("caddy", "--version", env_name="cool").wait()
-    start(
+    run("caddy", "--version", env_name="cool").wait()
+    run(
         "docker",
         "run",
         "hello-world",
@@ -185,11 +183,11 @@ async def main():
         aliases=aliases,
     ).wait()
     update("openjdk", env_name="cool", pip_dependencies=["requests"])
-    start("java", "--version", env_name="cool").wait()
+    run("java", "--version", env_name="cool").wait()
 
 
 if __name__ == "__main__":
-    print(sh.python3("-V"))
+    logging.getLogger().info("test")
     asyncio.run(main())
 
     # conda = path()

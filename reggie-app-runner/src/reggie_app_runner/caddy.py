@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Union
 
+import sh
 from reggie_core import jsons, logs, paths
 
 from reggie_app_runner import conda
@@ -17,14 +18,15 @@ _CONDA_PACKAGE_NAME = "caddy"
 _LOG_LEVEL_PATTERN = re.compile(r'"level"\s*:\s*"(\S+?)"', re.IGNORECASE)
 
 
-def start(config: Union[Path, Dict[str, Any], str], *args, **kwargs):
-    config_file = _to_caddy_file(config)
-    config_file_path = os.path.abspath(config_file)
+def command(*args, **kwargs) -> sh.Command:
     conda_env_name = _conda_env_name()
-    env_command = conda.env_command(conda_env_name)
+    return conda.run_command(conda_env_name).bake("caddy", *args, **kwargs)
 
-    def _done(*_):
-        os.unlink(config_file_path)
+
+def start(
+    config: Union[Path, Dict[str, Any], str], *args, **kwargs
+) -> sh.RunningCommand:
+    config_file = _to_caddy_file(config)
 
     def _out(error, line):
         levelno = logging.ERROR if error else logging.INFO
@@ -37,18 +39,26 @@ def start(config: Union[Path, Dict[str, Any], str], *args, **kwargs):
                     break
         LOG.log(levelno, line)
 
-    caddy = env_command(
-        "caddy",
+    cmd = command(
         "run",
         "--config",
-        config_file_path,
+        config_file,
         *args,
-        _done=_done,
         _bg=True,
         _out=lambda x: _out(False, x),
         _err=lambda x: _out(True, x),
+        **kwargs,
     )
-    return caddy
+
+    def _done(*_):
+        print("done")
+        os.unlink(config_file)
+
+    proc = cmd(
+        _done=_done,
+    )
+    setattr(proc, "config_file", config_file)
+    return proc
 
 
 @functools.cache
@@ -75,7 +85,7 @@ def _to_caddy_file(config: Union[str, Path, Dict[str, Any]]) -> Path:
     ) as caddy_file:
         caddy_file.write(config_content)
         caddy_file.flush()
-        return Path(caddy_file.name)
+        return Path(os.path.abspath(caddy_file.name))
 
 
 if __name__ == "__main__":
@@ -89,5 +99,14 @@ if __name__ == "__main__":
         respond "Hello, world!"
     }
     """,
-        _iter=True,
-    ).wait()
+    )
+    print(caddy.config_file)
+    try:
+        caddy.wait()
+    finally:
+        caddy.kill_group()
+        try:
+            caddy.wait()
+        except BaseException:
+            pass
+        raise

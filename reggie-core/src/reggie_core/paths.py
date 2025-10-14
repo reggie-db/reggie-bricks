@@ -15,13 +15,17 @@ from reggie_core import logs
 _CACHE_VERSION = 1
 
 
-def path(input, resolve: bool = True, exists: bool = False) -> Path | None:
+def path(
+    input, resolve: bool = True, exists: bool = False, absolute: bool = False
+) -> Path | None:
     if input is not None:
         try:
             if not isinstance(input, Path):
                 input = Path(input)
-            if not resolve:
+            if resolve:
                 input = input.resolve()
+            if absolute:
+                input = input.absolute()
             if not exists or input.exists():
                 return input
         except Exception:
