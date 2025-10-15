@@ -1,6 +1,6 @@
 import functools
+import json
 import logging
-import os
 import re
 import tempfile
 from pathlib import Path
@@ -16,17 +16,22 @@ LOG = logs.logger("caddy")
 _CONDA_ENV_NAME = "_caddy"
 _CONDA_PACKAGE_NAME = "caddy"
 _LOG_LEVEL_PATTERN = re.compile(r'"level"\s*:\s*"(\S+?)"', re.IGNORECASE)
+_EXIT_CODE_PATTERN = re.compile(r'"exit_code"\s*:\s*(\d+)', re.IGNORECASE)
 
 
-def command(*args, **kwargs) -> sh.Command:
-    conda_env_name = _conda_env_name()
-    return conda.run_command(conda_env_name).bake("caddy", *args, **kwargs)
+def command() -> sh.Command:
+    return conda.run(_conda_env_name()).bake("caddy")
 
 
-def start(
-    config: Union[Path, Dict[str, Any], str], *args, **kwargs
-) -> sh.RunningCommand:
+def run(config: Union[Path, Dict[str, Any], str], *args, **kwargs) -> sh.RunningCommand:
     config_file = _to_caddy_file(config)
+
+    def _done(*_):
+        try:
+            config_file.unlink()
+            LOG.info(f"Deleted config file {config_file}")
+        except FileNotFoundError:
+            pass
 
     def _out(error, line):
         levelno = logging.ERROR if error else logging.INFO
@@ -37,33 +42,35 @@ def start(
                 if line_levelno:
                     levelno = line_levelno
                     break
+            for match in _EXIT_CODE_PATTERN.finditer(line):
+                try:
+                    msg = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(msg, dict) and msg.get("exit_code") is not None:
+                    _done()
+
         LOG.log(levelno, line)
 
-    cmd = command(
+    args = list(args)
+
+    proc = command()(
         "run",
         "--config",
         config_file,
         *args,
-        _bg=True,
         _out=lambda x: _out(False, x),
         _err=lambda x: _out(True, x),
+        _done=_done,
         **kwargs,
     )
 
-    def _done(*_):
-        print("done")
-        os.unlink(config_file)
-
-    proc = cmd(
-        _done=_done,
-    )
-    setattr(proc, "config_file", config_file)
     return proc
 
 
 @functools.cache
 def _conda_env_name():
-    conda.update(_CONDA_PACKAGE_NAME, env_name=_CONDA_ENV_NAME)
+    conda.update(_CONDA_ENV_NAME, _CONDA_PACKAGE_NAME)
     return _CONDA_ENV_NAME
 
 
@@ -85,11 +92,12 @@ def _to_caddy_file(config: Union[str, Path, Dict[str, Any]]) -> Path:
     ) as caddy_file:
         caddy_file.write(config_content)
         caddy_file.flush()
-        return Path(os.path.abspath(caddy_file.name))
+        return paths.path(caddy_file.name, absolute=True)
 
 
 if __name__ == "__main__":
-    caddy = start(
+    log_line = ' {"level":"info","ts":1760473445.142467,"msg":"shutdown complete","signal":"SIGINT","exit_code":0}'
+    caddy = run(
         """
 
     :8080 {
@@ -100,13 +108,4 @@ if __name__ == "__main__":
     }
     """,
     )
-    print(caddy.config_file)
-    try:
-        caddy.wait()
-    finally:
-        caddy.kill_group()
-        try:
-            caddy.wait()
-        except BaseException:
-            pass
-        raise
+    caddy.wait()

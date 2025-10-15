@@ -8,6 +8,10 @@ from reggie_core import logs, paths
 from requirements.requirement import Requirement
 
 
+def is_url(source: str) -> bool:
+    return _git_requirement(source) or giturlparse.validate(source)
+
+
 def ssh_url(source: str) -> giturlparse.GitUrlParsed:
     git_url = _git_url(source)
     return git_url.url2ssh if git_url else None
@@ -55,7 +59,7 @@ def _git_command(token: str | None = None, **kwargs) -> sh.Command:
     if token:
         env = os.environ.copy()
         env["GITHUB_TOKEN"] = token
-        return sh.bake("git", _env=env, *kwargs)
+        return sh.git.bake(_env=env, *kwargs)
     else:
         return sh.git
 
@@ -80,4 +84,4 @@ def _git_requirement(source: str) -> Requirement:
 
 if __name__ == "__main__":
     print(remote_commit_hash("https://github.com/reggie-db/reggie-bricks-py"))
-    clone("https://github.com/reggie-db/reggie-bricks-py", "./reggie-bricks-py")
+    # clone("https://github.com/reggie-db/reggie-bricks-py", "./reggie-bricks-py")

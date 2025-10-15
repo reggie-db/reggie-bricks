@@ -13,6 +13,7 @@ dependencies = [
     "dynaconf",
     "pyaml",
     "sh",
+    "psutil",
     "requirements-parser",
     "giturlparse",
 ]
