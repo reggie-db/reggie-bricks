@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import os
@@ -17,7 +18,7 @@ from reggie_app_runner.app_runner import AppRunnerConfig, AppRunnerSource
 LOG = logs.logger(__file__)
 
 
-def run():
+async def run():
     configs = list(app_runner.read_configs())
     caddy_config = _build_caddy_config(configs)
     caddy_proc = caddy.run(caddy_config, _bg=True, _bg_exc=False)
@@ -26,12 +27,53 @@ def run():
         for config in configs:
             app_dir = _app_dir(config)
             procs.append(start(app_dir, config))
-        LOG.info(f"all processes started: {(p.pid for p in procs)}")
+        LOG.info(f"all processes started: {list(p.pid for p in procs)}")
         caddy_proc.wait()
     finally:
         for proc in procs:
             LOG.info(f"shutting down process {proc.pid}")
             _shutdown_process(proc)
+
+
+async def start(app_dir: Path, config: AppRunnerConfig) -> RunningCommand:
+    source_dir = prepare(app_dir, config)
+    env_name = f"app_{config.name}"
+    await asyncio.to_thread(
+        conda.update,
+        env_name,
+        *config.dependencies,
+        pip_dependencies=config.pip_dependencies,
+    )
+
+    def _build_env(env: dict):
+        home_dir = app_dir / "home"
+        home_dir.mkdir(parents=True, exist_ok=True)
+        env["HOME"] = str(home_dir)
+        return env
+
+    if type(config) == AppRunnerSource.DOCKER:
+        env = _build_env(config.env(databricks=True))
+        env_args = []
+        for key, value in env.items():
+            env_args.append("-e")
+            env_args.append(f"{key}={value}")
+        docker_commands = ["run"]
+        if docker.path():
+            docker_commands = docker_commands + ["-p", f"{config.port}:{config.port}"]
+        docker_commands = docker_commands + env_args + [config.source]
+        command = docker.command().bake(*docker_commands)
+    else:
+        env = _build_env(config.env(databricks=True, os_environ=True))
+        command = conda.run(env_name)
+    proc = command(
+        *config.commands,
+        _bg=True,
+        _bg_exc=False,
+        _cwd=source_dir,
+        _env=env,
+        _async=True,
+    )
+    return proc
 
 
 def type(config: AppRunnerConfig) -> AppRunnerSource:
@@ -72,42 +114,6 @@ def prepare(app_dir: Path, config: AppRunnerConfig) -> Path:
         # docker.pull(config.source)
         pass
     return source_dir
-
-
-def start(app_dir: Path, config: AppRunnerConfig) -> RunningCommand:
-    source_dir = prepare(app_dir, config)
-    env_name = f"app_{config.name}"
-    conda.update(
-        env_name, *config.dependencies, pip_dependencies=config.pip_dependencies
-    )
-
-    def _build_env(env: dict):
-        home_dir = app_dir / "home"
-        home_dir.mkdir(parents=True, exist_ok=True)
-        env["HOME"] = str(home_dir)
-        return env
-
-    if type(config) == AppRunnerSource.DOCKER:
-        env = _build_env(config.env(databricks=True))
-        env_args = []
-        for key, value in env.items():
-            env_args.append("-e")
-            env_args.append(f"{key}={value}")
-        docker_commands = ["run"]
-        if docker.path():
-            docker_commands = docker_commands + ["-p", f"{config.port}:{config.port}"]
-        docker_commands = docker_commands + env_args + [config.source]
-        command = docker.command().bake(*docker_commands)
-    else:
-        env = _build_env(config.env(databricks=True, os_environ=True))
-        command = conda.run(env_name)
-    return command(
-        *config.commands,
-        _bg=True,
-        _bg_exc=False,
-        _cwd=source_dir,
-        _env=env,
-    )
 
 
 def _app_dir(config: AppRunnerConfig):

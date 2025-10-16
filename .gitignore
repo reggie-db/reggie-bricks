@@ -167,5 +167,13 @@ prpr/
 # -----------------------
 # Dev-local
 # -----------------------
-.dev-local/
+
+# Match exactly or any path segment equal to dev-local or dev_local
+**/dev-local
+**/dev_local
+
+# Match any file or directory that ends with dev-local or dev_local
+**/*dev-local*
+**/*dev_local*
+
 nohup.out

@@ -20,4 +20,4 @@ class DataclassJSONEncoder(json.JSONEncoder):
             return o.isoformat()
         if is_dataclass(o):
             return asdict(o)
-        return super().default(o)
+        return str(o)

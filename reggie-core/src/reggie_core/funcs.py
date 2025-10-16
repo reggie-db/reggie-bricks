@@ -1,4 +1,6 @@
+import inspect
 from collections.abc import Iterable, Sequence
+from dataclasses import asdict, is_dataclass
 from typing import Any, TypeVar
 
 T = TypeVar("T")
@@ -31,6 +33,35 @@ def merge(
             if update or k not in result:
                 result[k] = v
     return result
+
+
+def to_dict(obj: Any, recursive: bool = True) -> dict[Any, Any]:
+    def _try_to_dict(value: Any) -> dict[Any, Any]:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            d = value
+        elif recursive and is_dataclass(value):
+            d = asdict(value)
+        else:
+            d = getattr(value, "__dict__", None)
+            if not isinstance(d, dict):
+                return value
+            d = d.copy()
+        for member_name, member_value in inspect.getmembers(value.__class__):
+            if isinstance(member_value, property):
+                d[member_name] = member_value.fget(value)
+        if recursive:
+            for k, v in d.items():
+                d[k] = _try_to_dict(v)
+        return d
+
+    data = _try_to_dict(obj)
+    if data is None:
+        return None
+    elif not isinstance(data, dict):
+        raise TypeError(f"Dict conversion failed, got {type(data)}")
+    return data
 
 
 def to_iter(*value: Iterable[T] | T | None) -> Iterable[T]:
