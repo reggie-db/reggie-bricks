@@ -112,7 +112,7 @@ def infer_json(
     return F.when(col.isNull(), F.lit(None)).otherwise(F.concat(*exprs))
 
 
-def infer_json_parsed(col: Column | str) -> Column:
+def infer_json_parse(col: Column | str) -> Column:
     col = col(col)
     infer_json_col = infer_json(col)
     return F.when(infer_json_col.isNull(), F.lit(None)).otherwise(
