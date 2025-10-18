@@ -6,7 +6,7 @@ build-backend = "uv_build"
 
 [project]
 name = "generators-franchise"
-version = "0.0.1+g4b7f333"
+version = "0.0.1+g9eee646"
 requires-python = ">=3.10"
 dependencies = [
     "reggie-core @ file://${PROJECT_ROOT}/../reggie-core",
@@ -16,7 +16,7 @@ dependencies = [
     "random-address",
     "beautifulsoup4",
     "jinja2",
-    "markovify"
+    "markovify",
 ]
 
 [tool.uv.sources.reggie-core]

@@ -46,6 +46,7 @@ def version() -> str:
 
 def main():
     root = utils.repo_root()
+    pyproject_version = version()
     pyproject_root = tomllib.loads((root / PY_PROJECT_FILE_NAME).read_text())
     members = (
         pyproject_root.get("tool", {})
@@ -79,7 +80,11 @@ def main():
             if not proj_tbl[DYNAMIC_KEY]:
                 proj_tbl.pop(DYNAMIC_KEY)
 
-        proj_tbl[VERSION_KEY] = VERSION
-        LOG.info(f"{proj.name}: {current} -> {VERSION}")
+        proj_tbl[VERSION_KEY] = pyproject_version
+        LOG.info(f"{proj.name}: {current} -> {pyproject_version}")
 
         py_path.write_text(tomli_w.dumps(data))
+
+
+if __name__ == "__main__":
+    main()
