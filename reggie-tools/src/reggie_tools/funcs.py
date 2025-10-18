@@ -26,7 +26,7 @@ def infer_json_schema(col: Column) -> Column:
         F.coalesce(F.array_size(array_schemas), F.lit(0)) > 0,
         F.concat(
             F.lit("array<struct<"),
-            F.array_join(array_schemas, F.lit(", ")),
+            F.concat_ws(", ", array_schemas),
             F.lit(">>"),
         ),
     ).otherwise(F.lit(None))
@@ -41,9 +41,7 @@ def infer_json_schema(col: Column) -> Column:
 
     object_schema = F.when(
         F.coalesce(F.array_size(object_schemas), F.lit(0)) > 0,
-        F.concat(
-            F.lit("struct<"), F.array_join(object_schemas, F.lit(", ")), F.lit(">")
-        ),
+        F.concat(F.lit("struct<"), F.concat_ws(", ", object_schemas), F.lit(">")),
     ).otherwise(F.lit(None))
 
     return F.when(col.isNull(), F.lit(None)).otherwise(
