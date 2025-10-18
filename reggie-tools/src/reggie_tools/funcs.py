@@ -17,7 +17,9 @@ def infer_json_schema(col: Column) -> Column:
                             F.flatten(
                                 F.transform(
                                     F.from_json(col, "array<string>"),
-                                    lambda x: F.json_object_keys(x),
+                                    lambda x: F.coalesce(
+                                        F.json_object_keys(x), F.array()
+                                    ),
                                 )
                             )
                         ),
