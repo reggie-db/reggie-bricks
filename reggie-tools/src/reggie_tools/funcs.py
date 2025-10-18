@@ -2,10 +2,8 @@ from pyspark.sql import functions as F
 from pyspark.sql.column import Column
 
 
-def infer_json_schema(col: Column | str) -> Column:
+def infer_json_schema(col: Column) -> Column:
     """Infer a schema string (array<struct<...>>, struct<...>, variant, or null)."""
-    if isinstance(col, str):
-        col = F.col(col)
 
     # Build `struct<...>` from keys
     def keys_to_struct_fields(keys_col: Column) -> Column:
@@ -45,13 +43,11 @@ def infer_json_schema(col: Column | str) -> Column:
     )
 
 
-def infer_json_type(col: Column | str) -> Column:
+def infer_json_type(col: Column) -> Column:
     """
     Quick JSON type inference using only the first non whitespace character.
     Returns: array, object, string, number, boolean, null, or NULL when undetected.
     """
-    if isinstance(col, str):
-        col = F.col(col)
 
     return (
         F.when(col.isNull(), F.lit("null"))
@@ -67,7 +63,7 @@ def infer_json_type(col: Column | str) -> Column:
 
 
 def infer_json(
-    col: Column | str,
+    col: Column,
     *,
     infer_type: bool = False,
 ) -> Column:
@@ -78,29 +74,26 @@ def infer_json(
     - schema includes a top level `value` field: struct<`value` ...>
     - type is quoted when known, or unquoted null when undetected- if all flags are False, returns NULL
     """
-    if isinstance(col, str):
-        col = F.col(col)
 
     inner_schema = infer_json_schema(col)
     schema_with_value = F.concat(F.lit("struct<`value` "), inner_schema, F.lit(">"))
 
-    # build field fragments
-    fields = [
-        F.concat(F.lit('"value":'), col),
-        F.concat(F.lit('"schema":"'), schema_with_value, F.lit('"')),
-    ]
+    exprs = [F.lit("{")]
+
+    value_expr = F.concat(F.lit('"value":'), col)
+    exprs.append(value_expr)
+
+    schema_expr = F.concat(F.lit(', "schema":"'), schema_with_value, F.lit('"'))
+    exprs.append(schema_expr)
 
     if infer_type:
-        t = infer_json_type(col)
-        t_json = F.when(t.isNull(), F.lit("null")).otherwise(
-            F.concat(F.lit('"'), t, F.lit('"'))
-        )
-        fields.append(F.concat(F.lit('"type":'), t_json))
+        type_expr = F.concat(F.lit(', "type":"'), infer_json_type(col), F.lit('"'))
+        exprs.append(type_expr)
+    else:
+        exprs.append(F.lit(""))
 
-    # join with commas and wrap with braces
-    body = F.array_join(F.array(*fields), F.lit(","))
-    expr = F.concat(F.lit("{"), body, F.lit("}"))
-
+    exprs.append(F.lit("}"))
+    expr = F.concat(*exprs)
     return F.when(col.isNull(), F.lit(None)).otherwise(expr)
 
 
@@ -125,12 +118,12 @@ if __name__ == "__main__":
     )
 
     print("=== schema + type + value ===")
-    df.withColumn("wrapped", infer_json("json_col", infer_type=True)).show(
+    df.withColumn("wrapped", infer_json(F.col("json_col"), infer_type=True)).show(
         truncate=False
     )
 
     print("=== schema only ===")
-    df.withColumn("wrapped", infer_json("json_col", infer_type=False)).show(
+    df.withColumn("wrapped", infer_json(F.col("json_col"), infer_type=False)).show(
         truncate=False
     )
 
@@ -138,7 +131,7 @@ if __name__ == "__main__":
 
     df.withColumn(
         "wrapped",
-        infer_json("json_col", infer_type=False),
+        infer_json(F.col("json_col"), infer_type=False),
     ).show(truncate=False)
 
-    df.withColumn("wrapped", infer_json("json_col")).show(truncate=False)
+    df.withColumn("wrapped", infer_json(F.col("json_col"))).show(truncate=False)
