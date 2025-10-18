@@ -2,15 +2,15 @@ from pyspark.sql import functions as F
 from pyspark.sql.column import Column
 
 
-def col(col: Column | str) -> Column:
-    if isinstance(col, str):
+def column(col: Column | str) -> Column:
+    if not isinstance(col, Column):
         return F.col(col)
     return col
 
 
 def infer_json_schema(col: Column | str) -> Column:
     """Infer a schema string (array<struct<...>>, struct<...>, variant, or null)."""
-    col = col(col)
+    col = column(col)
 
     array_schemas = F.when(
         col.rlike(r"^\s*\["),
@@ -61,7 +61,7 @@ def infer_json_type(col: Column | str) -> Column:
     Quick JSON type inference using only the first non whitespace character.
     Returns: array, object, string, number, boolean, null, or NULL when undetected.
     """
-    col = col(col)
+    col = column(col)
     return (
         F.when(col.isNull(), F.lit("null"))
         .when(col.rlike(r"^\s*\["), F.lit("array"))
@@ -89,7 +89,7 @@ def infer_json(
     - schema includes a top level value field: struct<value ...>
     - type is quoted when known, or unquoted null when undetected- if all flags are False, returns NULL
     """
-    col = col(col)
+    col = column(col)
     if not any([include_value, include_schema, include_type]):
         return F.lit(None)
     exprs = [F.lit("{")]
@@ -113,7 +113,7 @@ def infer_json(
 
 
 def infer_json_parse(col: Column | str) -> Column:
-    col = col(col)
+    col = column(col)
     infer_json_col = infer_json(col)
     return F.when(infer_json_col.isNull(), F.lit(None)).otherwise(
         F.from_json(infer_json_col, None, {"schemaLocationKey": "schema"})
