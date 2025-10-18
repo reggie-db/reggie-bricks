@@ -5,9 +5,6 @@ from pyspark.sql.column import Column
 def infer_json_schema(col: Column) -> Column:
     """Infer a schema string (array<struct<...>>, struct<...>, variant, or null)."""
 
-    def _struct_field(c):
-        return F.concat(c, F.lit(" variant"))
-
     return (
         F.when(col.isNull(), F.lit(None))
         .when(
@@ -24,7 +21,7 @@ def infer_json_schema(col: Column) -> Column:
                                 )
                             )
                         ),
-                        _struct_field,
+                        lambda x: F.concat(x, F.lit(" variant")),
                     ),
                     F.lit(","),
                 ),
@@ -38,7 +35,7 @@ def infer_json_schema(col: Column) -> Column:
                 F.array_join(
                     F.transform(
                         F.json_object_keys(col),
-                        _struct_field,
+                        lambda x: F.concat(x, F.lit(" variant")),
                     ),
                     F.lit(","),
                 ),
