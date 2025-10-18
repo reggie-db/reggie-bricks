@@ -98,3 +98,43 @@ def infer_json(
 
     expr = F.concat(expr, F.lit("}"))
     return F.when(col.isNull(), F.lit(None)).otherwise(expr)
+
+
+if __name__ == "__main__":
+    import os
+
+    from reggie_tools import clients
+
+    os.environ["DATABRICKS_CONFIG_PROFILE"] = "FIELD-ENG-EAST"
+    df = clients.spark().createDataFrame(
+        [
+            ('{"a":1,"b":2}',),
+            ('[{"x":1},{"y":2}]',),
+            ('"hello"',),
+            ("42",),
+            ("true",),
+            ("null",),
+            ("???",),  # undetected -> "type": null
+            (None,),
+        ],
+        ["json_col"],
+    )
+
+    print("=== schema + type + value ===")
+    df.withColumn("wrapped", infer_json("json_col", infer_type=True)).show(
+        truncate=False
+    )
+
+    print("=== schema only ===")
+    df.withColumn("wrapped", infer_json("json_col", infer_type=False)).show(
+        truncate=False
+    )
+
+    print("=== value only ===")
+
+    df.withColumn(
+        "wrapped",
+        infer_json("json_col", infer_type=False),
+    ).show(truncate=False)
+
+    df.withColumn("wrapped", infer_json("json_col")).show(truncate=False)
