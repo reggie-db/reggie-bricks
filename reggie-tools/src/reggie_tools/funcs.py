@@ -3,10 +3,10 @@ from pyspark.sql.column import Column
 
 
 def infer_json_schema(col: Column | str) -> Column:
-    """Infer a schema string (array<struct<...>>, struct<...>, variant, or null)."""
     if isinstance(col, str):
         col = F.col(col)
 
+    # keys -> " `key` variant " pieces
     def keys_to_struct_fields(keys_col: Column) -> Column:
         return F.array_join(
             F.transform(
@@ -15,16 +15,20 @@ def infer_json_schema(col: Column | str) -> Column:
             F.lit(","),
         )
 
+    # OBJECT: parse to map<string,string> then take map_keys -> array<string>
+    keys_for_object = F.array_sort(F.map_keys(F.from_json(col, "map<string,string>")))
+
+    # ARRAY of OBJECTS: parse to array<string>, then per element parse to map and take keys
     keys_for_array = F.array_sort(
         F.array_distinct(
             F.flatten(
                 F.transform(
-                    F.from_json(col, "array<string>"), lambda x: F.json_object_keys(x)
+                    F.from_json(col, "array<string>"),
+                    lambda x: F.map_keys(F.from_json(x, "map<string,string>")),
                 )
             )
         )
     )
-    keys_for_object = F.array_sort(F.json_object_keys(col))
 
     struct_str = F.concat(
         F.lit("struct<"), keys_to_struct_fields(keys_for_object), F.lit(">")
@@ -83,7 +87,7 @@ def infer_json(
     expr = F.lit("{")
 
     value_expr = F.concat(F.lit('"value":'), col)
-    expr = F.concat(expr, F.lit(","), value_expr)
+    expr = F.concat(expr, value_expr)
 
     schema_expr = F.concat(F.lit('"schema":"'), schema_with_value, F.lit('"'))
     expr = F.concat(expr, F.lit(","), schema_expr)
