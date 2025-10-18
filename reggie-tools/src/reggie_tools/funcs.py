@@ -83,7 +83,7 @@ def infer_json(
     return F.concat(
         F.lit('{"value":'),
         col,
-        F.lit(',"test":2,"schema":"struct<`value` '),
+        F.lit(',"schema":"struct<`value` '),
         inner_schema,
         F.lit('>"'),
         type_expr,
