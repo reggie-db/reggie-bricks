@@ -2,8 +2,15 @@ from pyspark.sql import functions as F
 from pyspark.sql.column import Column
 
 
-def infer_json_schema(col: Column) -> Column:
+def col(col: Column | str) -> Column:
+    if isinstance(col, str):
+        return F.col(col)
+    return col
+
+
+def infer_json_schema(col: Column | str) -> Column:
     """Infer a schema string (array<struct<...>>, struct<...>, variant, or null)."""
+    col = col(col)
 
     array_schemas = F.when(
         col.rlike(r"^\s*\["),
@@ -49,12 +56,12 @@ def infer_json_schema(col: Column) -> Column:
     )
 
 
-def infer_json_type(col: Column) -> Column:
+def infer_json_type(col: Column | str) -> Column:
     """
     Quick JSON type inference using only the first non whitespace character.
     Returns: array, object, string, number, boolean, null, or NULL when undetected.
     """
-
+    col = col(col)
     return (
         F.when(col.isNull(), F.lit("null"))
         .when(col.rlike(r"^\s*\["), F.lit("array"))
@@ -69,7 +76,7 @@ def infer_json_type(col: Column) -> Column:
 
 
 def infer_json(
-    col: Column,
+    col: Column | str,
     *,
     include_value: bool = True,
     include_schema: bool = True,
@@ -82,6 +89,7 @@ def infer_json(
     - schema includes a top level value field: struct<value ...>
     - type is quoted when known, or unquoted null when undetected- if all flags are False, returns NULL
     """
+    col = col(col)
     if not any([include_value, include_schema, include_type]):
         return F.lit(None)
     exprs = [F.lit("{")]
@@ -102,6 +110,14 @@ def infer_json(
     exprs.append(F.lit("}"))
 
     return F.when(col.isNull(), F.lit(None)).otherwise(F.concat(*exprs))
+
+
+def infer_json_parsed(col: Column | str) -> Column:
+    col = col(col)
+    infer_json_col = infer_json(col)
+    return F.when(infer_json_col.isNull(), F.lit(None)).otherwise(
+        F.from_json(infer_json_col, None, {"schemaLocationKey": "schema"})
+    )
 
 
 if __name__ == "__main__":
