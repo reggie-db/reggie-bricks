@@ -93,7 +93,7 @@ def infer_json(
     expr = F.concat(expr, F.lit(","), schema_expr)
 
     if infer_type:
-        type_expr = F.concat(F.lit('"type":'), infer_json_type(col))
+        type_expr = F.concat(F.lit('"type":"'), infer_json_type(col), F.lit('"'))
         expr = F.concat(expr, F.lit(","), type_expr)
 
     expr = F.concat(expr, F.lit("}"))
