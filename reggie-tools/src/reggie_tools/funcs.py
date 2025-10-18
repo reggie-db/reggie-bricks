@@ -5,40 +5,46 @@ from pyspark.sql.column import Column
 def infer_json_schema(col: Column) -> Column:
     """Infer a schema string (array<struct<...>>, struct<...>, variant, or null)."""
 
-    # Build `struct<...>` from keys
-    def keys_to_struct_fields(keys_col: Column) -> Column:
-        return F.array_join(
-            F.transform(
-                keys_col, lambda k: F.concat(F.lit("`"), k, F.lit("` variant"))
-            ),
-            F.lit(","),
-        )
-
-    # ARRAY: flatten keys from all elements
-    keys_for_array = F.array_sort(
-        F.array_distinct(
-            F.flatten(
-                F.transform(
-                    F.from_json(col, "array<string>"), lambda x: F.json_object_keys(x)
-                )
-            )
-        )
-    )
-
-    # OBJECT: directly extract keys
-    keys_for_object = F.array_sort(F.json_object_keys(col))
-
-    struct_str = F.concat(
-        F.lit("struct<"), keys_to_struct_fields(keys_for_object), F.lit(">")
-    )
-    array_struct_str = F.concat(
-        F.lit("array<struct<"), keys_to_struct_fields(keys_for_array), F.lit(">>")
-    )
+    def _struct_field(c):
+        return F.concat(c, F.lit(" variant"))
 
     return (
         F.when(col.isNull(), F.lit(None))
-        .when(col.rlike(r"^\s*\["), array_struct_str)
-        .when(col.rlike(r"^\s*\{"), struct_str)
+        .when(
+            col.rlike(r"^\s*\["),
+            F.concat(
+                F.lit("array<struct<"),
+                F.array_join(
+                    F.transform(
+                        F.array_distinct(
+                            F.flatten(
+                                F.transform(
+                                    F.from_json(col, "array<string>"),
+                                    lambda x: F.json_object_keys(x),
+                                )
+                            )
+                        ),
+                        _struct_field,
+                    ),
+                    F.lit(","),
+                ),
+                F.lit(">>"),
+            ),
+        )
+        .when(
+            col.rlike(r"^\s*\{"),
+            F.concat(
+                F.lit("struct<"),
+                F.array_join(
+                    F.transform(
+                        F.json_object_keys(col),
+                        _struct_field,
+                    ),
+                    F.lit(","),
+                ),
+                F.lit(">"),
+            ),
+        )
         .otherwise(F.lit("variant"))
     )
 
@@ -71,7 +77,7 @@ def infer_json(
     Return a JSON string containing any combination of:
       {"value":...,"schema":"...","type":...}
 
-    - schema includes a top level `value` field: struct<`value` ...>
+    - schema includes a top level value field: struct<value ...>
     - type is quoted when known, or unquoted null when undetected- if all flags are False, returns NULL
     """
 
@@ -83,7 +89,7 @@ def infer_json(
     return F.concat(
         F.lit('{"value":'),
         col,
-        F.lit(',"schema":"struct<`value` '),
+        F.lit(',"schema":"struct<value '),
         inner_schema,
         F.lit('>"'),
         type_expr,
