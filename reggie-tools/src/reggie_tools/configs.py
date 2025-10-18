@@ -5,9 +5,9 @@ import json
 import os
 import subprocess
 import threading
-from builtins import Exception, ValueError, hasattr
+from builtins import Exception, ValueError
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from databricks.sdk.core import Config
 from databricks.sdk.credentials_provider import OAuthCredentialsProvider
@@ -104,6 +104,7 @@ def token(config: Config = None) -> str:
 
 def config_value(
     name: str,
+    default: Any = None,
     spark: SparkSession = None,
     config_value_sources: List[ConfigValueSource] = None,
 ) -> Any:
@@ -121,35 +122,69 @@ def config_value(
         )
         else None
     )
-    for config_value_source in config_value_sources:
-        loader = None
-        if config_value_source is ConfigValueSource.WIDGETS:
-            loader = (
-                dbutils.widgets.get if dbutils and hasattr(dbutils, "widgets") else None
-            )
-        elif config_value_source is ConfigValueSource.SPARK_CONF:
-            loader = (spark or clients.spark()).conf.get
-        elif config_value_source is ConfigValueSource.OS_ENVIRON:
-            loader = os.environ.get
-        elif config_value_source is ConfigValueSource.SECRETS:
-            if dbutils and hasattr(dbutils, "secrets"):
-                catalog_schema = catalogs.catalog_schema(spark)
-                if catalog_schema:
-                    loader = lambda n: dbutils.secrets.get(
-                        scope=str(catalog_schema), key=n
-                    )
-        else:
-            raise ValueError(
-                f"unknown ConfigValueSource - config_value_source:{config_value_source}"
-            )
-        if loader:
-            try:
-                value = loader(name)
-                if value:
-                    return value
-            except Exception:
-                pass
-    return None
+
+    def _config_value_loaders() -> Iterable[Callable[[str], Any]]:
+        for config_value_source in config_value_sources:
+            if config_value_source is ConfigValueSource.WIDGETS:
+                widgets = getattr(dbutils, "widgets", None)
+                widgets_get = getattr(widgets, "get", None)
+                if callable(widgets_get):
+                    yield widgets.get
+                yield _get_all(widgets).get
+            elif config_value_source is ConfigValueSource.SPARK_CONF:
+                config_spark = spark or clients.spark()
+                yield config_spark.conf.get
+                yield _get_all(config_spark, "conf").get
+            elif config_value_source is ConfigValueSource.OS_ENVIRON:
+                yield os.environ.get
+            elif config_value_source is ConfigValueSource.SECRETS:
+                secrets = getattr(dbutils, "secrets", None)
+                if secrets:
+                    if catalog_schema := catalogs.catalog_schema(spark):
+
+                        def _load_secret(key: str) -> str:
+                            return secrets.get(scope=str(catalog_schema), key=key)
+
+                        yield _load_secret
+            else:
+                raise ValueError(
+                    f"unknown ConfigValueSource - config_value_source:{config_value_source}"
+                )
+
+    for loader in _config_value_loaders():
+        try:
+            if value := loader(name):
+                return value
+        except Exception:
+            pass
+    return default
+
+
+def _get_all(obj: Any, *attribues: str) -> dict[str, Any]:
+    data = {}
+
+    for i in range(len(attribues) + 1):
+        if i > 0:
+            obj = getattr(obj, attribues[i - 1], None)
+        if callable(obj):
+            obj = obj()
+        if obj is None:
+            return data
+    getAll = getattr(obj, "getAll", None)
+    if isinstance(getAll, dict):
+        return getAll
+    elif callable(getAll):
+        try:
+            conf_all = getAll()
+        except Exception:
+            return data
+    else:
+        return data
+    if isinstance(conf_all, Iterable):
+        for value in conf_all:
+            if isinstance(value, tuple) and len(value) == 2:
+                data[value[0]] = value[1]
+    return data
 
 
 def _cli_run(
@@ -205,5 +240,11 @@ def _cli_auth_login(profile: str):
 
 
 if __name__ == "__main__":
-    print(config_value("PATH"))
+    test = None
+    print(getattr(test, "conf", None))
+    print(isinstance({}, Iterable))
+    print(_get_all(clients.spark(), "conf"))
+    print(config_value("spark.databricks.execution.timeout"))
+    print(config_value("spark.databricks.execution.timeout2"))
+    print(config_value("HOME"))
     clients.spark().sql("select 'hello there' as msg").show()

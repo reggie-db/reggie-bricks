@@ -1,0 +1,96 @@
+from pyspark.sql import functions as F
+from pyspark.sql.column import Column
+
+
+def infer_json_schema(col: Column | str) -> Column:
+    """Infer a schema string (array<struct<...>>, struct<...>, variant, or null)."""
+    if isinstance(col, str):
+        col = F.col(col)
+
+    def keys_to_struct_fields(keys_col: Column) -> Column:
+        return F.array_join(
+            F.transform(
+                keys_col, lambda k: F.concat(F.lit("`"), k, F.lit("` variant"))
+            ),
+            F.lit(","),
+        )
+
+    keys_for_array = F.array_sort(
+        F.array_distinct(
+            F.flatten(
+                F.transform(
+                    F.from_json(col, "array<string>"), lambda x: F.json_object_keys(x)
+                )
+            )
+        )
+    )
+    keys_for_object = F.array_sort(F.json_object_keys(col))
+
+    struct_str = F.concat(
+        F.lit("struct<"), keys_to_struct_fields(keys_for_object), F.lit(">")
+    )
+    array_struct_str = F.concat(
+        F.lit("array<struct<"), keys_to_struct_fields(keys_for_array), F.lit(">>")
+    )
+
+    return (
+        F.when(col.isNull(), F.lit(None))
+        .when(col.rlike(r"^\s*\["), array_struct_str)
+        .when(col.rlike(r"^\s*\{"), struct_str)
+        .otherwise(F.lit("variant"))
+    )
+
+
+def infer_json_type(col: Column | str) -> Column:
+    """
+    Quick JSON type inference using only the first non whitespace character.
+    Returns: array, object, string, number, boolean, null, or NULL when undetected.
+    """
+    if isinstance(col, str):
+        col = F.col(col)
+
+    return (
+        F.when(col.isNull(), F.lit("null"))
+        .when(col.rlike(r"^\s*\["), F.lit("array"))
+        .when(col.rlike(r"^\s*\{"), F.lit("object"))
+        .when(col.rlike(r'^\s*["\']'), F.lit("string"))
+        .when(col.rlike(r"^\s*[+-]?[0-9]"), F.lit("number"))
+        .when(col.rlike(r"^\s*[tT]"), F.lit("boolean"))
+        .when(col.rlike(r"^\s*[fF]"), F.lit("boolean"))
+        .when(col.rlike(r"^\s*[nN]"), F.lit("null"))
+        .otherwise(F.lit("null"))  # cannot detect
+    )
+
+
+def infer_json(
+    col: Column | str,
+    *,
+    infer_type: bool = False,
+) -> Column:
+    """
+    Return a JSON string containing any combination of:
+      {"value":...,"schema":"...","type":...}
+
+    - schema includes a top level `value` field: struct<`value` ...>
+    - type is quoted when known, or unquoted null when undetected- if all flags are False, returns NULL
+    """
+    if isinstance(col, str):
+        col = F.col(col)
+
+    inner_schema = infer_json_schema(col)
+    schema_with_value = F.concat(F.lit("struct<`value` "), inner_schema, F.lit(">"))
+
+    expr = F.lit("{")
+
+    value_expr = F.concat(F.lit('"value":'), col)
+    expr = F.concat(expr, F.lit(","), value_expr)
+
+    schema_expr = F.concat(F.lit('"schema":"'), schema_with_value, F.lit('"'))
+    expr = F.concat(expr, F.lit(","), schema_expr)
+
+    if infer_type:
+        type_expr = F.concat(F.lit('"type":'), infer_json_type(col))
+        expr = F.concat(expr, F.lit(","), type_expr)
+
+    expr = F.concat(expr, F.lit("}"))
+    return F.when(col.isNull(), F.lit(None)).otherwise(expr)

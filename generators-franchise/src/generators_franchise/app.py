@@ -15,7 +15,7 @@ from datetime import datetime as dt
 from typing import Any
 
 from databricks.sdk.core import Config
-from reggie_core import funcs, jsons, logs, strs
+from reggie_core import funcs, logs, objects, strs
 from reggie_tools import clients, configs
 from xhtml2pdf import pisa
 
@@ -95,7 +95,7 @@ def _html_to_pdf(html_str: str) -> io.BytesIO:
 
 
 def _to_json_bytes(data: Any) -> io.BytesIO:
-    json_str = jsons.dumps(data)
+    json_str = objects.to_json(data)
     buf = io.BytesIO(json_str.encode("utf-8"))
     buf.seek(0)
     return buf

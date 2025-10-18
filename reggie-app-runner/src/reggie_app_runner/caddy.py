@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Union
 
 import sh
-from reggie_core import jsons, logs, paths
+from reggie_core import logs, objects, paths
 
 from reggie_app_runner import conda
 
@@ -79,7 +79,7 @@ def _to_caddy_file(config: Union[str, Path, Dict[str, Any]]) -> Path:
     if isinstance(config, Path):
         return config
     elif isinstance(config, Dict):
-        config_content = jsons.dumps(config, indent=2)
+        config_content = objects.to_json(config, indent=2)
         config_extension = "json"
     else:
         config = str(config)
