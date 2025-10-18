@@ -84,19 +84,20 @@ def infer_json(
     inner_schema = infer_json_schema(col)
     schema_with_value = F.concat(F.lit("struct<`value` "), inner_schema, F.lit(">"))
 
-    expr = F.lit("{")
+    exprs = [F.lit("{")]
 
     value_expr = F.concat(F.lit('"value":'), col)
-    expr = F.concat(expr, value_expr)
+    exprs.append(value_expr)
 
     schema_expr = F.concat(F.lit('"schema":"'), schema_with_value, F.lit('"'))
-    expr = F.concat(expr, F.lit(","), schema_expr)
+    exprs.append(schema_expr)
 
     if infer_type:
         type_expr = F.concat(F.lit('"type":"'), infer_json_type(col), F.lit('"'))
-        expr = F.concat(expr, F.lit(","), type_expr)
+        exprs.append(type_expr)
 
-    expr = F.concat(expr, F.lit("}"))
+    exprs.append(F.lit("}"))
+    expr = F.concat(*exprs)
     return F.when(col.isNull(), F.lit(None)).otherwise(expr)
 
 
